@@ -3,7 +3,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+document.getElementById('visual').appendChild(renderer.domElement);
 
 
 //-- Objects
@@ -55,8 +55,16 @@ for (let i = 0; i < ringCount; i++) {
 
         // Sphere surface positions
         const y = Math.random() * ringHeight - n2 + i * n / ringCount;
-        const x = (Math.random() * 2 - 1) * Math.sqrt(n2 * n2 - y * y);
-        const z = (Math.random() > 0.5 ? -1 : 1) * Math.sqrt(n2 * n2 - y * y - x * x);
+
+        // Simple to distribute points (somewhat) equally
+        let x, z;
+        if (Math.random() > 0.5) {
+            x = (Math.random() * 2 - 1) * Math.sqrt(n2 * n2 - y * y);
+            z = (Math.random() > 0.5 ? -1 : 1) * Math.sqrt(n2 * n2 - y * y - x * x);
+        } else {
+            z = (Math.random() * 2 - 1) * Math.sqrt(n2 * n2 - y * y);
+            x = (Math.random() > 0.5 ? -1 : 1) * Math.sqrt(n2 * n2 - y * y - z * z);
+        }
 
         // Triangle point A
         const ax = x + Math.random() * d - d2;
@@ -150,6 +158,8 @@ function animate() {
 }
 
 function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 

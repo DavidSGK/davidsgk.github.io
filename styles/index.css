@@ -6,10 +6,49 @@ html, body {
     width: 100vw;
     height: 100vh;
     margin: 0;
+
+    font-family: 'Didact Gothic', sans-serif;
+}
+
+h1, h2, h3 {
+    margin-top: 0;
+}
+
+h1 {
+    font-size: 3rem;
+}
+
+h2 {
+    font-size: 2rem;
+}
+
+h3 {
+    font-size: 1.5rem;
 }
 
 canvas {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+#visual {
+    position: absolute;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+}
+
+#contents {
+    width: 100%;
+    height: 100%;
+}
+
+section.main {
+    padding: 48px;
+    color: white;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
 }
