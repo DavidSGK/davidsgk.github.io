@@ -1,8 +1,9 @@
 //-- Three js setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+
 document.getElementById('visual').appendChild(renderer.domElement);
 
 
@@ -117,11 +118,49 @@ for (let i = 0; i < ringCount; i++) {
     // dust.computeBoundingSphere();
 
     ringPivots[i].add(new THREE.Mesh(dust, dustMaterial));
+
     scene.add(ringPivots[i]);
 }
 
 function disposeArray() {
     this.array = null;
+}
+
+
+// Tweening
+const tweenFrom = { scale: 1 };
+const tweenTo = { scale: 1.2 };
+
+const tweens = {
+    grow: new TWEEN
+        .Tween(tweenFrom)
+        .to(tweenTo, 450)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onUpdate(tweenOnUpdate)
+        .onStop(tweenOnComplete)
+        .onComplete(tweenOnComplete),
+    shrink: new TWEEN
+        .Tween(tweenTo)
+        .to(tweenFrom, 450)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onUpdate(tweenOnUpdate)
+        .onStop(tweenOnComplete)
+        .onComplete(tweenOnComplete)
+};
+
+
+function tweenOnUpdate(attr) {
+    ringPivots.forEach(
+        ring => {
+            ring.scale.set(attr.scale, attr.scale, attr.scale)
+        }
+    );
+    pivot.scale.set(1 / attr.scale, 1 / attr.scale, 1 / attr.scale);
+}
+
+function tweenOnComplete() {
+    tweenFrom.scale = 1;
+    tweenTo.scale = 1.2;
 }
 
 
@@ -133,9 +172,6 @@ const dirLight = new THREE.DirectionalLight(0xffffff, 1);
 dirLight.position.set(0, 0.5, 1);
 scene.add(dirLight);
 
-const ambLight = new THREE.AmbientLight(0x404040);
-scene.add(ambLight);
-
 
 //-- Camera
 camera.position.z = 800;
@@ -145,16 +181,20 @@ camera.position.z = 800;
 function animate() {
     window.requestAnimationFrame(animate);
 
-    pivot.rotation.x -= 0.01;
-    pivot.rotation.y -= 0.01;
+    // Rotate ico
+    pivot.rotation.x -= 0.005;
+    pivot.rotation.y -= 0.005;
 
+    // Rotate rings
     ringPivots.forEach(
         (ring, i) => {
-            ring.rotation.y += (i % 2 ? -1 : 1) * 0.01;
+            ring.rotation.y += (i % 2 ? -1 : 1) * 0.005;
         }
     );
 
     renderer.render(scene, camera);
+
+    TWEEN.update();
 }
 
 function onWindowResize() {
@@ -163,21 +203,25 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+function clickAnimation(grow) {
+    if (grow) {
+        tweens.shrink.stop();
+        tweens.grow.start();
+    } else {
+        tweens.grow.stop();
+        tweens.shrink.start();
+    }
+}
+
 
 //-- Event listeners
 window.addEventListener('resize', onWindowResize);
 
-window.addEventListener('mousedown', () => {
-    ringPivots.forEach(
-        ring => ring.scale.multiplyScalar(1.2)
-    );
-});
+window.addEventListener('mousedown', () => clickAnimation(true));
+window.addEventListener('touchstart', () => clickAnimation(true));
 
-window.addEventListener('mouseup', () => {
-    ringPivots.forEach(
-        ring => ring.scale.divideScalar(1.2)
-    );
-});
+window.addEventListener('mouseup', () => clickAnimation(false));
+window.addEventListener('touchend', () => clickAnimation(false));
 
 //-- Run
 animate();

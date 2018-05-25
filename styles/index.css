@@ -48,11 +48,14 @@ section.main {
     padding: 48px;
     color: white;
 
+    user-select: none;
+    letter-spacing: 0.1rem;
+
     display: flex;
     flex-direction: column;
     align-items: flex-end;
 }
 
-a {
+section.main a {
     color: white;
 }
