@@ -22,7 +22,7 @@ const triangleCount = 1000;
 const n = 600, n2 = n / 2;
 
 // Size of triangle
-const d = 50, d2 = d / 2;
+const d = 32, d2 = d / 2;
 
 // Array of pivot points for rings
 const ringPivots = [];
@@ -213,6 +213,16 @@ function clickAnimation(grow) {
     }
 }
 
+// Rotating effect based on cursor position
+function moveCamera(x, y) {
+    camera.position.set(
+        window.innerWidth / 2 - x,
+        y - window.innerHeight / 2,
+        camera.position.z
+    );
+    camera.lookAt(scene.position);
+}
+
 
 //-- Event listeners
 window.addEventListener('resize', onWindowResize);
@@ -222,6 +232,9 @@ window.addEventListener('touchstart', () => clickAnimation(true));
 
 window.addEventListener('mouseup', () => clickAnimation(false));
 window.addEventListener('touchend', () => clickAnimation(false));
+
+window.addEventListener('mousemove', e => moveCamera(e.clientX, e.clientY));
+window.addEventListener('touchmove', e => moveCamera(e.touches[0].clientX, e.touches[0].clientY));
 
 //-- Run
 animate();
