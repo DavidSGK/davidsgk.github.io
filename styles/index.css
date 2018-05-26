@@ -3,8 +3,8 @@
 }
 
 html, body {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     margin: 0;
 
     font-family: 'Didact Gothic', Lato, 'Open Sans', Roboto, Calibri, Arial, Calibri, sans-serif;
@@ -37,25 +37,80 @@ canvas {
     z-index: -1;
     width: 100%;
     height: 100%;
+    overflow: hidden;
 }
 
 #contents {
+    position: relative;
+
     width: 100%;
     height: 100%;
-}
 
-section.main {
-    padding: 48px;
     color: white;
-
     user-select: none;
     letter-spacing: 0.1rem;
 
+    overflow: hidden;
+}
+
+#main {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 100%;
+
+    padding: 48px;
+
     display: flex;
     flex-direction: column;
+
+    transition: left 450ms ease-out;
+}
+
+#main a {
+    color: white;
+}
+
+#main.left {
     align-items: flex-end;
 }
 
-section.main a {
-    color: white;
+#main.left.hidden {
+    left: -100%;
+}
+
+#main.right p {
+    font-size: 1.25rem;
+}
+
+#main.right.hidden {
+    left: 100%;
+}
+
+#main-toggle {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+
+    transform: rotate(0deg) translate(-50%, -50%);
+    transition: left 450ms ease-out;
+}
+
+#main-toggle > div {
+    background: white;
+
+    width: 2rem;
+    height: 2rem;
+
+    transform: rotate(45deg);
+    transition: transform 450ms ease-out;
+}
+
+#main-toggle.open {
+    left: 0;
+}
+
+#main-toggle.open > div {
+    transform: rotate(-315deg);
 }
