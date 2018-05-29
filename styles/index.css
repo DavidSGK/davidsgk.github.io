@@ -53,7 +53,7 @@ canvas {
     overflow: hidden;
 }
 
-#main {
+.main {
     position: absolute;
     top: 0;
     left: 0;
@@ -65,26 +65,26 @@ canvas {
     display: flex;
     flex-direction: column;
 
-    transition: left 450ms ease-out;
+    transition: left 800ms ease-in-out;
 }
 
-#main a {
-    color: white;
+.main a {
+    margin: 0.5rem 0;
 }
 
-#main.left {
+.main.left {
     align-items: flex-end;
 }
 
-#main.left.hidden {
+.main.left.hidden {
     left: -100%;
 }
 
-#main.right p {
+.main.right p {
     font-size: 1.25rem;
 }
 
-#main.right.hidden {
+.main.right.hidden {
     left: 100%;
 }
 
@@ -94,7 +94,7 @@ canvas {
     left: 100%;
 
     transform: rotate(0deg) translate(-50%, -50%);
-    transition: left 450ms ease-out;
+    transition: left 800ms ease-in-out;
 }
 
 #main-toggle > div {
@@ -103,8 +103,10 @@ canvas {
     width: 2rem;
     height: 2rem;
 
+    cursor: pointer;
+
     transform: rotate(45deg);
-    transition: transform 450ms ease-out;
+    transition: transform 800ms ease-in-out;
 }
 
 #main-toggle.open {
@@ -113,4 +115,10 @@ canvas {
 
 #main-toggle.open > div {
     transform: rotate(-315deg);
+}
+
+.highlight-text {
+    background: #fdfdfd;
+    color: #111111;
+    padding: 0.5rem 1rem;
 }

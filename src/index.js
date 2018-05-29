@@ -1,7 +1,7 @@
 // Main toggle
 const toggle = document.getElementById('main-toggle');
-const left = document.querySelector('#main.left');
-const right = document.querySelector('#main.right');
+const left = document.querySelector('.main.left');
+const right = document.querySelector('.main.right');
 let open = false;
 
 toggle.addEventListener('click', () => {
