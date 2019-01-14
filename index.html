@@ -3,36 +3,30 @@
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width,initial-scale=1">
+        <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+        <link href="https://fonts.googleapis.com/css?family=Josefin+Sans" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css?family=Didact+Gothic" rel="stylesheet">
         <link rel="stylesheet" href="styles/index.css">
         <title>David Kang</title>
     </head>
     <body>
-        <div id="visual"></div>
-        <script src="src/Tween.min.js"></script>
-        <script src="src/three.min.js"></script>
-        <script src="src/bg.js"></script>
-
-        <div id="contents">
-            <section class="main left">
-                <h1 class="highlight-text">David Kang</h1>
-                <h3 class="main-subtitle highlight-text">I'm a developer.</h3>
-                <a class="highlight-text" href="assets/seung_gyu_kang_resume.pdf" target="_blank">resumé</a>
-                <a class="highlight-text" href="https://github.com/davidsgk" target="_blank">github</a>
-                <a class="highlight-text" href="https://www.linkedin.com/in/davidsgk" target="_blank">linkedin</a>
-                <br>
-                <a class="highlight-text" href="mailto:david.kang@uwaterloo.ca">david.kang@uwaterloo.ca</a>
-                <br>
-            </section>
-            <section class="main right hidden">
-                <p class="highlight-text">Hi, I'm a 2B Software Engineering student at the University of Waterloo.</p>
-                <p class="highlight-text">I'm a passionate learner working to explore a variety of fields in both professional work and personal projects.</p>
-                <p class="highlight-text">I'm currently looking for Fall 2018 internship opportunities, so feel free to contact me!</p>
-            </section>
-            <div id="main-toggle">
-                <div></div>
-            </div>
+        <div id="visual">
+            <canvas id="background"></canvas>
+            <img id="avatar" src="assets/Keyboard-Warrior.svg">
         </div>
+        <section class="main">
+            <div class="landing loading">
+                <h1 class="name">David Kang</h1>
+                <h3 class="desc">UWaterloo Software Engineering 3A</h3>
+                <h3 class="looking">Looking for Spring '19 internships</h3>
+                <div class="links">
+                    <a class="fas fa-file-alt" href="assets/seung_gyu_kang_resume.pdf" target="_blank"></a>
+                    <a class="fab fa-github" href="https://github.com/davidsgk" target="_blank"></a>
+                    <a class="fab fa-linkedin-in" href="https://www.linkedin.com/in/davidsgk" target="_blank"></a>
+                    <a class="fas fa-envelope" href="mailto:david.kang@uwaterloo.ca"></a>
+                </div>
+            </div>
+        </section>
         <script src="src/index.js"></script>
     </body>
 </html>
