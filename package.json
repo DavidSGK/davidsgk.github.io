@@ -1,0 +1,18 @@
+{
+  "source": "index.html",
+  "scripts": {
+    "start": "parcel",
+    "prebuild": "rm -rf dist",
+    "build": "parcel build",
+    "push-gh-pages": "push-dir --dir=dist --branch=gh-pages --cleanup --verbose"
+  },
+  "browserslist": "defaults",
+  "devDependencies": {
+    "@parcel/packager-raw-url": "2.8.0",
+    "@parcel/packager-xml": "2.8.0",
+    "@parcel/transformer-webmanifest": "2.8.0",
+    "@parcel/transformer-xml": "2.8.0",
+    "parcel": "^2.8.0",
+    "push-dir": "^0.4.1"
+  }
+}
