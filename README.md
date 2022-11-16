@@ -4,6 +4,8 @@
 ## Dependencies
 - NodeJS/NPM/Yarn
 - Use Parcel for building/bundling
+- React.js
+- Three.js
 - Assets (mostly) handmade
     - Favicons generated using [this](https://realfavicongenerator.net/) website
 

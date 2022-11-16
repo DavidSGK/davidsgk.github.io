@@ -13,6 +13,12 @@
     "@parcel/transformer-webmanifest": "2.8.0",
     "@parcel/transformer-xml": "2.8.0",
     "parcel": "^2.8.0",
+    "process": "^0.11.10",
     "push-dir": "^0.4.1"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^0.146.0"
   }
 }

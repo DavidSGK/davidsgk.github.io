@@ -2,20 +2,31 @@
   box-sizing: border-box;
 }
 
-html, body {
+@font-face {
+  font-family: 'Pixel7';
+  src: url('/assets/Pixel7.ttf');
+}
+
+html,
+body {
   width: 100%;
   height: 100%;
   margin: 0;
 
-  font-family: Georgia, serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
+    'Helvetica Neue', sans-serif;
+  font-size: 16px;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   margin-top: 0;
 }
 
 h1 {
-  font-size: 3rem;
+  font-size: 6rem;
 }
 
 h2 {
@@ -26,14 +37,19 @@ h3 {
   font-size: 1.5rem;
 }
 
+#root {
+  position: relative;
+
+  width: 100%;
+  height: 100%;
+}
+
 .sky-gradient {
-  background: linear-gradient(
-    #1b2947, #282f51, #36365a, #443c63,
-    #52426b, #614973, #704f7b, #815482,
-    #935988, #a55d8d, #b86291, #cb6692,
-    #dd6b93, #ec7691, #f18c90, #f3a195,
-    #f3b6a0, #f3c9b2, #f3dcc7, #ffeddb
-  );
+  background: linear-gradient(#1b2947, #282f51, #36365a, #443c63,
+      #52426b, #614973, #704f7b, #815482,
+      #935988, #a55d8d, #b86291, #cb6692,
+      #dd6b93, #ec7691, #f18c90, #f3a195,
+      #f3b6a0, #f3c9b2, #f3dcc7, #ffeddb);
 }
 
 #visual {
@@ -42,11 +58,6 @@ h3 {
 
   width: 100%;
   height: 100%;
-
-  background: linear-gradient(
-    #16BAC5,
-    #baf7ff
-  );
 
   overflow: hidden;
 }
@@ -67,10 +78,6 @@ h3 {
   width: 100%;
   height: 100%;
 
-  font-family: 'Josefin Sans', 'Didact Gothic',
-    -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
-    'Helvetica Neue', sans-serif;
   letter-spacing: 0.2rem;
   text-transform: uppercase;
 }
@@ -84,7 +91,7 @@ h3 {
   flex-direction: column;
   align-items: center;
 
-  padding: 48px 0 16px 0;
+  padding: 64px 0 32px 0;
 
   width: 100%;
 
@@ -102,7 +109,9 @@ h3 {
 }
 
 .landing .name {
-  color: #ffb838;
+  margin-bottom: 1rem;
+
+  letter-spacing: 1rem;
 }
 
 .landing h3 {
@@ -137,6 +146,11 @@ h3 {
 
 .landing.loading {
   opacity: 0;
-  
+
   transform: translateY(-40%);
+}
+
+.pixel {
+  font-family: 'Pixel7';
+  filter: contrast(1);
 }
