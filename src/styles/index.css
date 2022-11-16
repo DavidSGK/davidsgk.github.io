@@ -44,14 +44,6 @@ h3 {
   height: 100%;
 }
 
-.sky-gradient {
-  background: linear-gradient(#1b2947, #282f51, #36365a, #443c63,
-      #52426b, #614973, #704f7b, #815482,
-      #935988, #a55d8d, #b86291, #cb6692,
-      #dd6b93, #ec7691, #f18c90, #f3a195,
-      #f3b6a0, #f3c9b2, #f3dcc7, #ffeddb);
-}
-
 #visual {
   position: absolute;
   z-index: -1;
@@ -59,17 +51,14 @@ h3 {
   width: 100%;
   height: 100%;
 
+  background: radial-gradient(#ffffff, #efefef);
+
   overflow: hidden;
 }
 
-#avatar {
-  position: absolute;
-  left: 50%;
-  bottom: 40px;
-
-  height: 320px;
-
-  transform: translateX(-50%);
+#visual canvas {
+  width: 100%;
+  height: 100%;
 }
 
 .main {

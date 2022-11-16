@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { DK_PIXEL_COORDS, DK_PIXEL_HEIGHT, DK_PIXEL_WIDTH } from "./geometry/pixel-constants";
+import { getPixelShapeGeometry } from "./geometry/pixel";
 
-const WIDTH = window.innerWidth;
-const HEIGHT = window.innerHeight;
 const CAMERA_DISTANCE = 25;
 
 /**
@@ -15,32 +15,41 @@ const Graphic = () => {
   // Note only running effect once
   useEffect(() => {
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, WIDTH / HEIGHT, 1, 1000);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+    camera.position.set(0, 0, CAMERA_DISTANCE);
+
     const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, alpha: true, antialias: true });
-
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(WIDTH, HEIGHT);
+    renderer.setSize(window.innerWidth, window.innerHeight);
 
-    // For now, draw simple icosahedron
-    const geometry = new THREE.IcosahedronGeometry(5);
+    // DK pixel
+    const geometry = getPixelShapeGeometry(DK_PIXEL_WIDTH, DK_PIXEL_HEIGHT, DK_PIXEL_COORDS, 1);
     const material = new THREE.MeshNormalMaterial();
     const object = new THREE.Mesh(geometry, material);
 
     scene.add(object);
-    camera.position.set(0, 0, CAMERA_DISTANCE);
 
     const animate = () => {
       requestAnimationFrame(animate);
-      object.rotateX(-0.01);
-      object.rotateY(0.01);
-      object.rotateZ(0.01);
+
+      // Magic numbers for visual rotation for now
+      object.rotateX(-0.004);
+      object.rotateY(-0.006);
+      object.rotateZ(0.00025);
 
       renderer.render(scene, camera);
     };
 
     animate();
 
-    // TODO: Add resize handling
+    const onWindowResizeHandler = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+
+    window.addEventListener("resize", onWindowResizeHandler);
   }, []);
 
   return (
