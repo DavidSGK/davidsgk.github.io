@@ -44,8 +44,11 @@ function getPixelShapeGeometry(pixelWidth, pixelHeight, pixelCoords, pixelSize) 
     }
   });
 
+  const indices = [...Array(36 * NUM_PIXEL_DIV * NUM_PIXEL_DIV * PIXEL_DEPTH * pixelCoords.length).keys()];
+
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geometry.setIndex(indices);
   // Note that normal computation is based on counterclockwise specification of vertices for "out"
   geometry.computeVertexNormals();
 
