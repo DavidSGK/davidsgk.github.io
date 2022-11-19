@@ -89,42 +89,6 @@ float angle(vec2 from, vec2 to, bool clockwise) {
   }
 }
 
-vec3 rotate3D(vec3 v, float x, float y, float z) {
-  float sx = sin(x);
-  float cx = cos(x);
-  float sy = sin(y);
-  float cy = cos(y);
-  float sz = sin(z);
-  float cz = cos(z);
-
-  mat3 rotMat = mat3(
-    cy * cz,                  cy * sz,                  -sy,
-    sx * sy * cz - cx * sz,   sx * sy * sz + cx * cz,   sx * cy,
-    cx * sy * cz + sx * sz,   cx * sy * sz - sx * cz,   cx * cy
-  );
-
-  return rotMat * v;
-}
-
-vec3 rotateVec3(vec3 p, float angle, vec3 axis){
-  vec3 a = normalize(axis);
-  float s = sin(angle);
-  float c = cos(angle);
-  float r = 1.0 - c;
-  mat3 m = mat3(
-    a.x * a.x * r + c,
-    a.y * a.x * r + a.z * s,
-    a.z * a.x * r - a.y * s,
-    a.x * a.y * r - a.z * s,
-    a.y * a.y * r + c,
-    a.z * a.y * r + a.x * s,
-    a.x * a.z * r + a.y * s,
-    a.y * a.z * r - a.x * s,
-    a.z * a.z * r + c
-  );
-  return m * p;
-}
-
 vec3 rotateAround(vec3 v, float angle, vec3 axis) {
   vec3 a = normalize(axis);
   float s = sin(angle);
