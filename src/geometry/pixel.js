@@ -2,7 +2,7 @@ import * as THREE from "three";
 import pixelVertexShader from "../shaders/pixelVertex.glsl";
 import pixelFragmentShader from "../shaders/pixelFragment.glsl";
 import { createNoise3D } from "simplex-noise";
-import { CubeSpec, DKSpec, SmileSpec } from "./pixel-constants";
+import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec } from "./pixel-constants";
 
 /**
  * Allow using Three.js BufferGeometry to create 3D versions of pixellated text
@@ -25,12 +25,14 @@ class PixelObject extends THREE.Object3D {
   static Shapes = {
     DK: 0,
     SMILE: 1,
-    CUBE: 2,
+    HEART: 2,
+    MUSIC_NOTE: 3,
   };
   static ShapeSpecs = {
     [PixelObject.Shapes.DK]: DKSpec,
     [PixelObject.Shapes.SMILE]: SmileSpec,
-    [PixelObject.Shapes.CUBE]: CubeSpec,
+    [PixelObject.Shapes.HEART]: HeartSpec,
+    [PixelObject.Shapes.MUSIC_NOTE]: MusicNoteSpec,
   };
 
   constructor(initialShape, size, onFinishTransition = () => { }) {
@@ -44,14 +46,12 @@ class PixelObject extends THREE.Object3D {
     }
 
     this.numVertices = NUM_VERTICES;
-    if (this.numVertices % 3 !== 0) {
-      throw new Error("Number of vertices must be divisible by 3.");
+    if (this.numVertices % 36 !== 0) {
+      throw new Error("Number of vertices must be divisible by 36 to accommodate cube building.");
     }
 
     this.shapeSize = size;
     this.geometry = new THREE.BufferGeometry();
-    this.setGeometryAttributes(initialShape);
-    this.setGeometryAttributes(initialShape, true);
 
     this.material = new THREE.RawShaderMaterial({
       vertexShader: pixelVertexShader,
@@ -60,6 +60,9 @@ class PixelObject extends THREE.Object3D {
       // Disable interacting with lights - if we want, we need to add more uniforms
       lights: true,
       uniforms: THREE.UniformsUtils.merge([{
+        numVertices: { type: "int", value: this.numVertices },
+        // "Used" as in visible and not zeroed because they're not necessary for current shape
+        numUsedVertices: { type: "int", value: this.getNumCubes(initialShape) * 36 },
         // Overall time tracked by clock
         time: { type: "1f", value: 0 },
         currentShape: { type: "int", value: initialShape },
@@ -68,6 +71,9 @@ class PixelObject extends THREE.Object3D {
         transProgress: { type: "1f", value: 1 },
       }, THREE.UniformsLib.lights]),
     });
+
+    this.setGeometryAttributes(initialShape);
+    this.setGeometryAttributes(initialShape, true);
 
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.add(this.mesh);
@@ -99,7 +105,7 @@ class PixelObject extends THREE.Object3D {
     this.material.uniforms.time.value += this.clock.getDelta();
 
     if (this.inTransition && this.material.uniforms.transProgress.value < 1) {
-      this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + 0.01, 1);
+      this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + 0.005, 1);
     } else if (this.inTransition) {
       // Want this to only fire once
       this.finishTransition();
@@ -148,7 +154,9 @@ class PixelObject extends THREE.Object3D {
     const noises = [];
     // 3D vector of random values to be shared for all vertices in the same cube in [0, 1)
     const cubeRandoms = [];
+    const cubeIndices = [];
 
+    let cubeIndex = 0;
     pixelCoords.forEach(([pixelX, pixelY]) => {
       for (let localCubeX = 0; localCubeX < pixelResolution; localCubeX++) {
         for (let localCubeY = 0; localCubeY < pixelResolution; localCubeY++) {
@@ -170,21 +178,29 @@ class PixelObject extends THREE.Object3D {
             const randomVec = [Math.random(), Math.random(), Math.random()];
             for (let i = 0; i < 36; i++) {  // 36 vertices per cube
               cubeRandoms.push(...randomVec);
+              cubeIndices.push(cubeIndex);
             }
+
+            cubeIndex++;
           }
         }
       }
     });
 
     // Pad leftover vertex values
-    for (let i = 0; i < this.numVertices - noises.length; i++) {
+    const numRemaining = noises.length;
+    for (let i = 0; i < this.numVertices - numRemaining; i++) {
       positions.push(0, 0, 0);
       cubeCenterOffsets.push(0, 0, 0);
       noises.push(0);
       cubeRandoms.push(0, 0, 0);
     }
+    for (let i = 0; i < this.numVertices - numRemaining; i += 36) {
+      cubeIndices.push(...new Array(36).fill(cubeIndex++));
+    }
 
     // Calculate normals
+    // Counterclockwise triangle for outward
     const normals = [];
     for (let i = 0; i < positions.length; i += 9) {
       const va = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
@@ -229,25 +245,20 @@ class PixelObject extends THREE.Object3D {
         array: new Float32Array(cubeRandoms),
         itemSize: 3,
       },
+      cubeIndex: {
+        array: new Float32Array(cubeIndices),
+        itemSize: 1,
+      },
     };
 
+    // Sanity check for correct lengths
+    for (const attr in attributes) {
+      if (attributes[attr].array.length / attributes[attr].itemSize !== this.numVertices) {
+        throw new Error(`Internal error calculating geometry attribute ${attr}: expected size ${this.numVertices} but got ${attributes[attr].array.length / attributes[attr].itemSize}`);
+      }
+    }
+
     return attributes;
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
-    geometry.setIndex(indices);
-    // Note that normal computation is based on counterclockwise specification of vertices for "out"
-    geometry.computeVertexNormals();
-
-    // Add custom attributes for animation purposes
-    // Ideally, we add information here so that shaders can animate without doing as much math per vertex/pixel
-    geometry.setAttribute("cubeCenterOffset", new THREE.BufferAttribute(new Float32Array(cubeCenterOffsets), 3));
-    geometry.setAttribute("noise", new THREE.BufferAttribute(new Float32Array(noises), 1));
-    geometry.setAttribute("cubeRandom", new THREE.BufferAttribute(new Float32Array(cubeRandoms), 3));
-
-    // TODO: shader needs to be able to differentiate between animating in triangles vs cubes
-
-    return geometry;
   }
 
   /**
@@ -345,6 +356,18 @@ class PixelObject extends THREE.Object3D {
       this.geometry.setAttribute(attrKey, new THREE.BufferAttribute(geometryAttributes[attr].array, geometryAttributes[attr].itemSize));
       this.geometry.getAttribute(attrKey).needsUpdate = true;
     }
+    // Also update used vertex count to allow adjusting transitions and handling leftover vertices
+    const numUsedVertices = this.getNumCubes(shape) * 36;
+    if (!isTarget) {
+      this.material.uniforms.numUsedVertices.value = numUsedVertices;
+    } else {
+      this.material.uniforms.numUsedVertices.value = Math.max(this.material.uniforms.numUsedVertices.value, numUsedVertices);
+    }
+  }
+
+  getNumCubes(shape) {
+    const spec = PixelObject.ShapeSpecs[shape];
+    return spec.coords.length * spec.resolution * spec.resolution * spec.depth;
   }
 };
 

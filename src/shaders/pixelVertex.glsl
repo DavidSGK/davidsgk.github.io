@@ -4,6 +4,8 @@
 // Don't need all builtins because relatively simple
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
+uniform int numVertices;
+uniform int numUsedVertices;
 uniform float time;
 uniform int currentShape;
 uniform int targetShape;
@@ -24,6 +26,7 @@ attribute vec3 normal;
 attribute vec3 cubeCenterOffset;
 attribute float noise;
 attribute vec3 cubeRandom;
+attribute float cubeIndex;
 
 attribute vec3 targetPosition;
 attribute vec3 targetNormal;
@@ -82,7 +85,13 @@ float orbitRadius(float curAngle, float startAngle, float endAngle, float startR
 }
 
 void main() {
-  // TODO: Implement staggered progress by adding cube index attribute
+  // Stagger progress based on cube index (larger indices start/finish later)
+  float staggerMax = 0.2;
+  float progress = 0.0;
+  float progressStart = cubeIndex / (float(numUsedVertices) / 36.0) * staggerMax;
+  if (transProgress > progressStart) {
+    progress = min(1.0 / (1.0 - staggerMax) * (transProgress - progressStart), 1.0);
+  }
 
   vec3 newPos = position;
   // Need to also update normal based on any transformations to vertices
@@ -94,10 +103,10 @@ void main() {
   vec3 tCubeCenterOffset = targetCubeCenterOffset;
 
   // Interpolate noise
-  newNoise = mix(newNoise, targetNoise, min(transProgress * 2.0, 1.0));
+  newNoise = mix(newNoise, targetNoise, min(progress * 2.0, 1.0));
 
-  // At transProgress = 0, we want to be at current
-  // At transProgress = 1, we want to be at target
+  // At progress = 0, we want to be at current
+  // At progress = 1, we want to be at target
   // We could apply "physics" to vertices to move them along a path naturally to the target over time
   // We choose to use polar equations for paths because it's easier (but probably more expensive)
   // Polar equations should also play more nicely with easing effects on the overall transition
@@ -109,15 +118,14 @@ void main() {
 
   // Y axis rotation (i.e. flat on XZ plane)
   float cLenXZ = length(newPos.xz);
-  vec2 cDirXZ = cLenXZ == 0.0 ? vec2(1.0, 0.0) : normalize(newPos.xz);
-  vec2 tDirXZ = tPos.xz == vec2(0.0, 0.0) ? vec2(1.0, 0.0) : normalize(tPos.xz);
+  float fallbackDir1 = cubeRandom.z > 0.5 ? 1.0 : -1.0;
+  float fallbackDir2 = targetCubeRandom.z > 0.5 ? 1.0 : -1.0;
+  vec2 cDirXZ = cLenXZ == 0.0 ? fallbackDir1 * vec2(1.0, 0.0) : normalize(newPos.xz);
+  vec2 tDirXZ = tPos.xz == vec2(0.0, 0.0) ? fallbackDir2 * vec2(1.0, 0.0) : normalize(tPos.xz);
   float cRotY = angle(vec2(1.0, 0.0), cDirXZ, false);
   float rotY = angle(cDirXZ, tDirXZ, false);
-  rotY += 2.0 * PI;
-  if (rotY == 0.0) {
-    rotY = 2.0 * PI;
-  }
-  float dRotY = mix(0.0, rotY, transProgress);
+  rotY += 4.0 * PI; // Add more cycles in orbit
+  float dRotY = mix(0.0, rotY, progress);
   // Scale orbit randomly and influenced by how originally close the cube was
   float orbitYScale = (cubeRandom.y + targetCubeRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
   float radXZ = orbitRadius(cRotY + dRotY, cRotY, cRotY + rotY, cLenXZ, length(tPos.xz), orbitYScale);
@@ -126,10 +134,15 @@ void main() {
   newPos.z = sin(cRotY + dRotY) * radXZ;
 
   // Simple interpolation for Y for now
-  newPos.y = mix(newPos.y, tPos.y, transProgress) * ((cubeRandom.x + targetCubeRandom.x) * 2.5 * sin(transProgress * PI) + 1.0);
+  newPos.y = mix(newPos.y, tPos.y, progress) * ((cubeRandom.x + targetCubeRandom.x) * 2.5 * sin(progress * PI) + 1.0);
 
-  newPos += mix(cCubeCenterOffset, tCubeCenterOffset, transProgress);
-  newNorm = mix(normal, targetNormal, transProgress);
+  // If this cube is supposed to be shrinking to 0 (because it's a leftover), shrink faster
+  if (tCubeCenterOffset == vec3(0.0, 0.0, 0.0)) {
+    newPos += mix(cCubeCenterOffset, tCubeCenterOffset, min(progress * 2.0, 1.0));
+  } else {
+    newPos += mix(cCubeCenterOffset, tCubeCenterOffset, progress);
+  }
+  newNorm = mix(normal, targetNormal, progress);
 
   // Update position
   gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
@@ -137,7 +150,7 @@ void main() {
   // Update vertex color (to be used by fragment shader)
   // Lots of magic numbers here for an aesthetic cycle of colors
   float h = sin(time * 0.1 + newNoise * 0.25) * 0.5 + 0.5;
-  float s = sin(time * 0.3 + newNoise * 0.4) * newNoise * 0.05 + 0.65;
+  float s = sin(time * 0.3 + newNoise * 0.4) * newNoise * 0.05 + 0.7;
   vertColor = vec4(hsv2rgb(vec3(h, s, 1.0)), 1.0);
 
   // Calculate directional lighting
