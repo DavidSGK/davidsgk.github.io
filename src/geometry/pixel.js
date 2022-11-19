@@ -10,6 +10,8 @@ import { CubeSpec, DKSpec, SmileSpec } from "./pixel-constants";
  */
 
 const NOISE_FREQUENCY_MULTIPLIER = 0.2;
+// Somewhat reasonable number of vertices - allows ~80k triangles
+const NUM_VERTICES = 36 * Math.pow(4, 3) * 10 * 10;
 
 /**
  * Extension of Object3D to more easily manage a pixel shape geometry/material
@@ -31,7 +33,7 @@ class PixelObject extends THREE.Object3D {
     [PixelObject.Shapes.CUBE]: CubeSpec,
   };
 
-  constructor(initialShape, size) {
+  constructor(initialShape, size, onFinishTransition = () => { }) {
     super();
 
     this.clock = new THREE.Clock();
@@ -41,22 +43,15 @@ class PixelObject extends THREE.Object3D {
       throw new Error("Initial shape must be a pixel shape.");
     }
 
-    const initialShapeSpec = PixelObject.ShapeSpecs[initialShape];
-    // For now this means initial shape needs to have the most vertices
-    this.numVertices = 36 * initialShapeSpec.coords.length * Math.pow(initialShapeSpec.resolution, 3);
-    this.shapeSize = size;
-    this.geometry = this.getPixelGeometry(
-      initialShapeSpec.width,
-      initialShapeSpec.height,
-      initialShapeSpec.depth,
-      initialShapeSpec.resolution,
-      initialShapeSpec.coords,
-      this.shapeSize,
-    );
-    // Add additional attributes for each shape we want to be able to render
-    for (const shape in PixelObject.Shapes) {
-      this.addAttributesForPixelShape(PixelObject.Shapes[shape]);
+    this.numVertices = NUM_VERTICES;
+    if (this.numVertices % 3 !== 0) {
+      throw new Error("Number of vertices must be divisible by 3.");
     }
+
+    this.shapeSize = size;
+    this.geometry = new THREE.BufferGeometry();
+    this.setGeometryAttributes(initialShape);
+    this.setGeometryAttributes(initialShape, true);
 
     this.material = new THREE.RawShaderMaterial({
       vertexShader: pixelVertexShader,
@@ -76,6 +71,9 @@ class PixelObject extends THREE.Object3D {
 
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.add(this.mesh);
+
+    this.onFinishTransition = onFinishTransition;
+    this.inTransition = false;
   }
 
   getCurrentShape() {
@@ -83,10 +81,14 @@ class PixelObject extends THREE.Object3D {
   }
 
   setTargetShape(shape) {
+    // Set target attributes
+    this.setGeometryAttributes(shape, true);
+
     // Update both current and target
     this.material.uniforms.targetShape.value = shape;
     // TODO: Handle interruptions
     this.material.uniforms.transProgress.value = 0;
+    this.inTransition = true;
   }
 
   /**
@@ -95,28 +97,51 @@ class PixelObject extends THREE.Object3D {
    */
   update() {
     this.material.uniforms.time.value += this.clock.getDelta();
-    if (this.material.uniforms.transProgress.value < 1) {
+
+    if (this.inTransition && this.material.uniforms.transProgress.value < 1) {
       this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + 0.01, 1);
-    } else if (this.material.uniforms.currentShape.value != this.material.uniforms.targetShape.value) {
-      this.material.uniforms.currentShape.value = this.material.uniforms.targetShape.value;
+    } else if (this.inTransition) {
+      // Want this to only fire once
+      this.finishTransition();
     }
   }
 
   /**
+   * Finish transition between shapes and update "current" attributes
+   */
+  finishTransition() {
+    this.material.uniforms.currentShape.value = this.material.uniforms.targetShape.value;
+    this.setGeometryAttributes(this.material.uniforms.currentShape.value);
+
+    this.inTransition = false;
+    this.onFinishTransition();
+  }
+
+  /**
    * Get a BufferGeometry object formed of subdivided cubes for a specified pixel shape.
+   * 
    * @param {*} pixelWidth width of overall shape in number of pixels
    * @param {*} pixelHeight height of overall shape in number of pixels
-   * @param {*} pixelDepth depth of overall shape in number of CUBES, NOT PIXELS
+   * @param {*} cubeDepth depth of overall shape in number of CUBES, NOT PIXELS
    * @param {*} pixelResolution how many cubes a pixel should be subdivided to
    * @param {*} pixelCoords 2D array of 2D "pixel coordinates"
    * @param {*} pixelSize how long each side of a pixel should be
+   * @param {*} shuffleCubes whether to shuffle the order of cubes
    */
-  getPixelGeometry(pixelWidth, pixelHeight, pixelDepth, pixelResolution, pixelCoords, pixelSize) {
+  getPixelGeometryAttributes(pixelShapeSpec, pixelSize, shuffleCubes) {
+    const {
+      width: pixelWidth,
+      height: pixelHeight,
+      depth: cubeDepth,
+      resolution: pixelResolution,
+      coords: pixelCoords,
+    } = pixelShapeSpec;
+
     const cubeSize = pixelSize / pixelResolution;
     // For convenience we start overall shape at "(0, 0, 0)" but offset for center
     const offsetX = pixelSize * (pixelWidth / 2) - (cubeSize / 2);
     const offsetY = pixelSize * (pixelHeight / 2) - (cubeSize / 2);
-    const offsetZ = pixelSize * ((pixelDepth / pixelResolution) / 2) - (cubeSize / 2);
+    const offsetZ = pixelSize * ((cubeDepth / pixelResolution) / 2) - (cubeSize / 2);
 
     const positions = [];
     const cubeCenterOffsets = [];
@@ -127,7 +152,7 @@ class PixelObject extends THREE.Object3D {
     pixelCoords.forEach(([pixelX, pixelY]) => {
       for (let localCubeX = 0; localCubeX < pixelResolution; localCubeX++) {
         for (let localCubeY = 0; localCubeY < pixelResolution; localCubeY++) {
-          for (let cubeZ = 0; cubeZ < pixelDepth; cubeZ++) {
+          for (let cubeZ = 0; cubeZ < cubeDepth; cubeZ++) {
             const cubeX = pixelX * pixelResolution + localCubeX;
             const cubeY = pixelY * pixelResolution + localCubeY;
             const cubeCenter = new THREE.Vector3(
@@ -151,7 +176,62 @@ class PixelObject extends THREE.Object3D {
       }
     });
 
-    const indices = [...Array(36 * pixelResolution * pixelResolution * pixelDepth * pixelCoords.length).keys()];
+    // Pad leftover vertex values
+    for (let i = 0; i < this.numVertices - noises.length; i++) {
+      positions.push(0, 0, 0);
+      cubeCenterOffsets.push(0, 0, 0);
+      noises.push(0);
+      cubeRandoms.push(0, 0, 0);
+    }
+
+    // Calculate normals
+    const normals = [];
+    for (let i = 0; i < positions.length; i += 9) {
+      const va = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
+      const vb = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]);
+      const vc = new THREE.Vector3(positions[i + 6], positions[i + 7], positions[i + 8]);
+
+      const vcb = new THREE.Vector3().subVectors(vc, vb);
+      const vab = new THREE.Vector3().subVectors(va, vb);
+      vcb.cross(vab);
+      vcb.normalize();
+
+      for (let j = 0; j < 3; j++) {
+        normals.push(vcb.x, vcb.y, vcb.z);
+      }
+    }
+
+    const indices = [...new Array(this.numVertices).keys()];
+
+    // Keys are named to be set directly as vertex shader attributes
+    const attributes = {
+      position: {
+        array: new Float32Array(positions),
+        itemSize: 3,
+      },
+      index: {
+        array: new Float32Array(indices),
+        itemSize: 1,
+      },
+      normal: {
+        array: new Float32Array(normals),
+        itemSize: 3,
+      },
+      cubeCenterOffset: {
+        array: new Float32Array(cubeCenterOffsets),
+        itemSize: 3,
+      },
+      noise: {
+        array: new Float32Array(noises),
+        itemSize: 1,
+      },
+      cubeRandom: {
+        array: new Float32Array(cubeRandoms),
+        itemSize: 3,
+      },
+    };
+
+    return attributes;
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
@@ -258,49 +338,13 @@ class PixelObject extends THREE.Object3D {
     return { vertexPositions, centerOffsets: offsets, vertexNoises };
   }
 
-  addAttributesForPixelShape(shape) {
-    // A tiny bit wasteful but reuse geometry method to get positions
-    if (shape >= Object.keys(PixelObject.Shapes).length) {
-      throw new Error(`Shape ${shape} is not a pixel shape.`);
+  setGeometryAttributes(shape, isTarget = false) {
+    const geometryAttributes = this.getPixelGeometryAttributes(PixelObject.ShapeSpecs[shape], this.shapeSize, true);
+    for (const attr in geometryAttributes) {
+      const attrKey = isTarget ? "target" + attr.charAt(0).toUpperCase() + attr.slice(1) : attr;
+      this.geometry.setAttribute(attrKey, new THREE.BufferAttribute(geometryAttributes[attr].array, geometryAttributes[attr].itemSize));
+      this.geometry.getAttribute(attrKey).needsUpdate = true;
     }
-    const shapeSpec = PixelObject.ShapeSpecs[shape];
-    const shapeGeometry = this.getPixelGeometry(
-      shapeSpec.width,
-      shapeSpec.height,
-      shapeSpec.depth,
-      shapeSpec.resolution,
-      shapeSpec.coords,
-      this.shapeSize,
-    );
-
-    const cloneAndPadAttribute = (attribute, itemSize) => {
-      const attrArray = shapeGeometry.getAttribute(attribute).clone().array;
-      return new THREE.BufferAttribute(
-        new Float32Array(
-          [
-            ...attrArray,
-            ...new Array(this.numVertices * itemSize - attrArray.length).fill(0),
-          ],
-        ),
-        itemSize,
-      );
-    };
-
-    // let positions = shapeGeometry.getAttribute("position").clone().array;
-    // positions = [...positions, ...new Array(this.numVertices * 3 - positions.length).fill(0)];
-    // let cubeCenterOffsets = shapeGeometry.getAttribute("cubeCenterOffset").clone().array;
-    // cubeCenterOffsets = [...cubeCenterOffsets, ...new Array(this.numVertices * 3 - positions.length).fill(0)];
-    // let noises = shapeGeometry.getAttribute("noise").clone().array;
-    // noises = [...noises, ...new Array(this.numVertices - noises.length).fill(0)];
-    // TODO: Add cube-based shuffling
-
-    this.geometry.setAttribute(`shape${shape}Position`, cloneAndPadAttribute("position", 3));
-    this.geometry.setAttribute(`shape${shape}Normal`, cloneAndPadAttribute("normal", 3));
-    this.geometry.setAttribute(`shape${shape}CubeCenterOffset`, cloneAndPadAttribute("cubeCenterOffset", 3));
-    this.geometry.setAttribute(`shape${shape}Noise`, cloneAndPadAttribute("noise", 1));
-    this.geometry.setAttribute(`shape${shape}CubeRandom`, cloneAndPadAttribute("cubeRandom", 3));
-
-    // TODO: With the current/target system, probably also need to add normals, noises, etc.
   }
 };
 

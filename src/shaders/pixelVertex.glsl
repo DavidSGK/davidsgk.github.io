@@ -23,48 +23,15 @@ attribute float index;
 attribute vec3 normal;
 attribute vec3 cubeCenterOffset;
 attribute float noise;
+attribute vec3 cubeRandom;
 
-attribute vec3 shape0Position;
-attribute vec3 shape1Position;
-attribute vec3 shape2Position;
-
-attribute vec3 shape0Normal;
-attribute vec3 shape1Normal;
-attribute vec3 shape2Normal;
-
-attribute vec3 shape0CubeCenterOffset;
-attribute vec3 shape1CubeCenterOffset;
-attribute vec3 shape2CubeCenterOffset;
-
-attribute float shape0Noise;
-attribute float shape1Noise;
-attribute float shape2Noise;
-
-attribute vec3 shape0CubeRandom;
-attribute vec3 shape1CubeRandom;
-attribute vec3 shape2CubeRandom;
+attribute vec3 targetPosition;
+attribute vec3 targetNormal;
+attribute vec3 targetCubeCenterOffset;
+attribute float targetNoise;
+attribute vec3 targetCubeRandom;
 
 varying vec4 vertColor;
-
-struct ShapeAttr {
-  vec3 position;
-  vec3 normal;
-  vec3 cubeCenterOffset;
-  float noise;
-  vec3 cubeRandom;
-};
-
-// Not sure if there's a more elegant way to do this within limits of WebGL 1...
-ShapeAttr getShapeAttr(int shape) {
-  if (shape == 0) {
-    return ShapeAttr(shape0Position, shape0Normal, shape0CubeCenterOffset, shape0Noise, shape0CubeRandom);
-  } else if (shape == 1) {
-    return ShapeAttr(shape1Position, shape1Normal, shape1CubeCenterOffset, shape1Noise, shape1CubeRandom);
-  } else if (shape == 2) {
-    return ShapeAttr(shape2Position, shape2Normal, shape2CubeCenterOffset, shape2Noise, shape2CubeRandom);
-  }
-  return ShapeAttr(shape0Position, shape0Normal, shape0CubeCenterOffset, shape0Noise, shape0CubeRandom);
-}
 
 // We want to work in HSV because we want colors to be above certain brightness
 // Taken from https://stackoverflow.com/questions/15095909/from-rgb-to-hsv-in-opengl-glsl
@@ -115,22 +82,19 @@ float orbitRadius(float curAngle, float startAngle, float endAngle, float startR
 }
 
 void main() {
-  ShapeAttr currentShapeAttr = getShapeAttr(currentShape);
-  ShapeAttr targetShapeAttr = getShapeAttr(targetShape);
-
   // TODO: Implement staggered progress by adding cube index attribute
 
-  vec3 newPos = currentShapeAttr.position;
+  vec3 newPos = position;
   // Need to also update normal based on any transformations to vertices
-  vec3 newNorm = currentShapeAttr.normal;
-  float newNoise = currentShapeAttr.noise;
+  vec3 newNorm = normal;
+  float newNoise = noise;
 
-  vec3 cCubeCenterOffset = currentShapeAttr.cubeCenterOffset;
-  vec3 tPos = targetShapeAttr.position;
-  vec3 tCubeCenterOffset = targetShapeAttr.cubeCenterOffset;
+  vec3 cCubeCenterOffset = cubeCenterOffset;
+  vec3 tPos = targetPosition;
+  vec3 tCubeCenterOffset = targetCubeCenterOffset;
 
   // Interpolate noise
-  newNoise = mix(newNoise, targetShapeAttr.noise, min(transProgress * 2.0, 1.0));
+  newNoise = mix(newNoise, targetNoise, min(transProgress * 2.0, 1.0));
 
   // At transProgress = 0, we want to be at current
   // At transProgress = 1, we want to be at target
@@ -155,17 +119,17 @@ void main() {
   }
   float dRotY = mix(0.0, rotY, transProgress);
   // Scale orbit randomly and influenced by how originally close the cube was
-  float orbitYScale = (currentShapeAttr.cubeRandom.y + targetShapeAttr.cubeRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
+  float orbitYScale = (cubeRandom.y + targetCubeRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
   float radXZ = orbitRadius(cRotY + dRotY, cRotY, cRotY + rotY, cLenXZ, length(tPos.xz), orbitYScale);
 
   newPos.x = cos(cRotY + dRotY) * radXZ;
   newPos.z = sin(cRotY + dRotY) * radXZ;
 
   // Simple interpolation for Y for now
-  newPos.y = mix(newPos.y, tPos.y, transProgress) * ((currentShapeAttr.cubeRandom.x + targetShapeAttr.cubeRandom.x) * 2.5 * sin(transProgress * PI) + 1.0);
+  newPos.y = mix(newPos.y, tPos.y, transProgress) * ((cubeRandom.x + targetCubeRandom.x) * 2.5 * sin(transProgress * PI) + 1.0);
 
   newPos += mix(cCubeCenterOffset, tCubeCenterOffset, transProgress);
-  newNorm = mix(currentShapeAttr.normal, targetShapeAttr.normal, transProgress);
+  newNorm = mix(normal, targetNormal, transProgress);
 
   // Update position
   gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
