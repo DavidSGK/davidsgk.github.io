@@ -84,7 +84,6 @@ class PixelObject extends THREE.Object3D {
 
   setTargetShape(shape) {
     // Update both current and target
-    this.material.uniforms.currentShape.value = this.material.uniforms.targetShape.value;
     this.material.uniforms.targetShape.value = shape;
     // TODO: Handle interruptions
     this.material.uniforms.transProgress.value = 0;
@@ -98,6 +97,8 @@ class PixelObject extends THREE.Object3D {
     this.material.uniforms.time.value += this.clock.getDelta();
     if (this.material.uniforms.transProgress.value < 1) {
       this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + 0.01, 1);
+    } else if (this.material.uniforms.currentShape.value != this.material.uniforms.targetShape.value) {
+      this.material.uniforms.currentShape.value = this.material.uniforms.targetShape.value;
     }
   }
 
