@@ -2,7 +2,7 @@ import * as THREE from "three";
 import pixelVertexShader from "../shaders/pixelVertex.glsl";
 import pixelFragmentShader from "../shaders/pixelFragment.glsl";
 import { createNoise3D } from "simplex-noise";
-import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec } from "./pixel-constants";
+import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, ExclamationSpec } from "./pixel-constants";
 
 /**
  * Allow using Three.js BufferGeometry to create 3D versions of pixellated text
@@ -10,8 +10,6 @@ import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec } from "./pixel-constants";
  */
 
 const NOISE_FREQUENCY_MULTIPLIER = 0.2;
-// Somewhat reasonable number of vertices - allows ~80k triangles
-const NUM_VERTICES = 36 * Math.pow(4, 3) * 10 * 10;
 
 /**
  * Extension of Object3D to more easily manage a pixel shape geometry/material
@@ -27,12 +25,14 @@ class PixelObject extends THREE.Object3D {
     SMILE: 1,
     HEART: 2,
     MUSIC_NOTE: 3,
+    EXCLAMATION: 4,
   };
   static ShapeSpecs = {
     [PixelObject.Shapes.DK]: DKSpec,
     [PixelObject.Shapes.SMILE]: SmileSpec,
     [PixelObject.Shapes.HEART]: HeartSpec,
     [PixelObject.Shapes.MUSIC_NOTE]: MusicNoteSpec,
+    [PixelObject.Shapes.EXCLAMATION]: ExclamationSpec,
   };
 
   constructor(initialShape, size, onFinishTransition = () => { }) {
@@ -45,10 +45,8 @@ class PixelObject extends THREE.Object3D {
       throw new Error("Initial shape must be a pixel shape.");
     }
 
-    this.numVertices = NUM_VERTICES;
-    if (this.numVertices % 36 !== 0) {
-      throw new Error("Number of vertices must be divisible by 36 to accommodate cube building.");
-    }
+    // Match number of vertices to max required
+    this.numVertices = Math.max(...Object.values(PixelObject.ShapeSpecs).map((spec) => 36 * spec.coords.length * spec.resolution * spec.resolution * spec.depth));
 
     this.shapeSize = size;
     this.geometry = new THREE.BufferGeometry();
@@ -68,7 +66,7 @@ class PixelObject extends THREE.Object3D {
         currentShape: { type: "int", value: initialShape },
         targetShape: { type: "int", value: initialShape },
         // Ongoing progression of a transition, [0, 1] TODO: but what about interruptions?
-        transProgress: { type: "1f", value: 1 },
+        transProgress: { type: "1f", value: 0 },
       }, THREE.UniformsLib.lights]),
     });
 
@@ -93,7 +91,6 @@ class PixelObject extends THREE.Object3D {
     // Update both current and target
     this.material.uniforms.targetShape.value = shape;
     // TODO: Handle interruptions
-    this.material.uniforms.transProgress.value = 0;
     this.inTransition = true;
   }
 
@@ -113,11 +110,12 @@ class PixelObject extends THREE.Object3D {
   }
 
   /**
-   * Finish transition between shapes and update "current" attributes
+   * Finish transition between shapes and update "current" attributes from previous target
    */
   finishTransition() {
     this.material.uniforms.currentShape.value = this.material.uniforms.targetShape.value;
     this.setGeometryAttributes(this.material.uniforms.currentShape.value);
+    this.material.uniforms.transProgress.value = 0;
 
     this.inTransition = false;
     this.onFinishTransition();
@@ -149,12 +147,12 @@ class PixelObject extends THREE.Object3D {
     const offsetY = pixelSize * (pixelHeight / 2) - (cubeSize / 2);
     const offsetZ = pixelSize * ((cubeDepth / pixelResolution) / 2) - (cubeSize / 2);
 
-    const positions = [];
-    const cubeCenterOffsets = [];
-    const noises = [];
+    let positions = [];
+    let cubeCenterOffsets = [];
+    let noises = [];
     // 3D vector of random values to be shared for all vertices in the same cube in [0, 1)
-    const cubeRandoms = [];
-    const cubeIndices = [];
+    let cubeRandoms = [];
+    let cubeIndices = [];
 
     let cubeIndex = 0;
     pixelCoords.forEach(([pixelX, pixelY]) => {
@@ -201,7 +199,7 @@ class PixelObject extends THREE.Object3D {
 
     // Calculate normals
     // Counterclockwise triangle for outward
-    const normals = [];
+    let normals = [];
     for (let i = 0; i < positions.length; i += 9) {
       const va = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
       const vb = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]);
@@ -217,7 +215,24 @@ class PixelObject extends THREE.Object3D {
       }
     }
 
-    const indices = [...new Array(this.numVertices).keys()];
+    let indices = [...new Array(this.numVertices).keys()];
+
+    if (shuffleCubes) {
+      const swap = (a, i, j) => {
+        const temp = a[i];
+        a[i] = a[j];
+        a[j] = temp;
+      };
+
+      // Shuffle order of cubes
+      // Fisher-Yates algorithm https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+      for (let i = 0; i < this.numVertices / 36 - 1; i++) {
+        const toSwap = THREE.MathUtils.randInt(i, this.numVertices / 36 - 1);
+        for (let j = 0; j < 36; j++) {
+          swap(cubeIndices, i * 36 + j, toSwap * 36 + j);
+        }
+      }
+    }
 
     // Keys are named to be set directly as vertex shader attributes
     const attributes = {

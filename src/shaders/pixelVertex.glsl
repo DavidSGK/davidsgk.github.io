@@ -86,9 +86,9 @@ float orbitRadius(float curAngle, float startAngle, float endAngle, float startR
 
 void main() {
   // Stagger progress based on cube index (larger indices start/finish later)
-  float staggerMax = 0.2;
+  float staggerMax = 0.3;
   float progress = 0.0;
-  float progressStart = cubeIndex / (float(numUsedVertices) / 36.0) * staggerMax;
+  float progressStart = cubeIndex / (float(numVertices) / 36.0) * staggerMax;
   if (transProgress > progressStart) {
     progress = min(1.0 / (1.0 - staggerMax) * (transProgress - progressStart), 1.0);
   }
@@ -127,7 +127,7 @@ void main() {
   rotY += 4.0 * PI; // Add more cycles in orbit
   float dRotY = mix(0.0, rotY, progress);
   // Scale orbit randomly and influenced by how originally close the cube was
-  float orbitYScale = (cubeRandom.y + targetCubeRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
+  float orbitYScale = (cubeRandom.y + targetCubeRandom.y - 1.0) * (8.0 / (cLenXZ + 0.1));
   float radXZ = orbitRadius(cRotY + dRotY, cRotY, cRotY + rotY, cLenXZ, length(tPos.xz), orbitYScale);
 
   newPos.x = cos(cRotY + dRotY) * radXZ;
@@ -149,7 +149,7 @@ void main() {
 
   // Update vertex color (to be used by fragment shader)
   // Lots of magic numbers here for an aesthetic cycle of colors
-  float h = sin(time * 0.1 + newNoise * 0.25) * 0.5 + 0.5;
+  float h = mod((time * 0.025 + newNoise * 0.125), 1.0);
   float s = sin(time * 0.3 + newNoise * 0.4) * newNoise * 0.05 + 0.7;
   vertColor = vec4(hsv2rgb(vec3(h, s, 1.0)), 1.0);
 

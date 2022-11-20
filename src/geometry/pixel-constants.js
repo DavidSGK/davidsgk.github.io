@@ -1,8 +1,11 @@
+// FIXME: Strange behavior when res isn't a power of 2
+const STANDARD_RES = 4;
+
 export const DKSpec = {
   width: 9,
   height: 7,
-  depth: 4,
-  resolution: 4,
+  depth: STANDARD_RES,
+  resolution: STANDARD_RES,
   coords: [
     [0, 0],
     [1, 0],
@@ -40,8 +43,8 @@ export const DKSpec = {
 export const SmileSpec = {
   width: 7,
   height: 7,
-  depth: 4,
-  resolution: 4,
+  depth: STANDARD_RES,
+  resolution: STANDARD_RES,
   coords: [
     [1, 0],
     [2, 0],
@@ -62,8 +65,8 @@ export const SmileSpec = {
 export const HeartSpec = {
   width: 7,
   height: 6,
-  depth: 4,
-  resolution: 4,
+  depth: STANDARD_RES,
+  resolution: STANDARD_RES,
   coords: [
     [3, 0],
     [2, 1],
@@ -98,8 +101,8 @@ export const HeartSpec = {
 export const MusicNoteSpec = {
   width: 10,
   height: 13,
-  depth: 4,
-  resolution: 4,
+  depth: STANDARD_RES,
+  resolution: STANDARD_RES,
   coords: [
     [7, 0],
     [8, 0],
@@ -153,6 +156,21 @@ export const MusicNoteSpec = {
     [5, 12],
   ],
 }
+
+export const ExclamationSpec = {
+  width: 1,
+  height: 7,
+  depth: STANDARD_RES * 2,
+  resolution: STANDARD_RES * 2,
+  coords: [
+    [0, 0],
+    [0, 2],
+    [0, 3],
+    [0, 4],
+    [0, 5],
+    [0, 6],
+  ],
+};
 
 export const Simple1Spec = {
   width: 9,

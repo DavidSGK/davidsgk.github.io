@@ -45,7 +45,7 @@ const Graphic = () => {
     // Transition between shapes
     setInterval(() => {
       mainObject.setTargetShape((mainObject.getCurrentShape() + 1) % Object.keys(PixelObject.Shapes).length);
-    }, 7000);
+    }, 9000);
 
     renderer.setAnimationLoop(() => {
       // Bobbing animation
