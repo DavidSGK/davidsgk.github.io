@@ -3,14 +3,15 @@ import pixelVertexShader from "../shaders/pixelVertex.glsl";
 import pixelFragmentShader from "../shaders/pixelFragment.glsl";
 import Alea from 'alea';
 import { createNoise3D } from "simplex-noise";
-import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, ExclamationSpec } from "./pixel-specs";
+import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, SemicolonSpec } from "./pixel-specs";
 import { shuffle } from "../utils";
 
 /**
- * Allow using Three.js BufferGeometry to create 3D versions of pixellated text
+ * Allow using Three.js BufferGeometry to create 3D versions of pixellated shapes
  * Each "pixel" can be subdivided into cubes, which have 2 triangles per face
  */
 
+const OTHER_SHAPE_START = 10;
 const NOISE_FREQUENCY_MULTIPLIER = 0.2;
 
 /**
@@ -27,11 +28,11 @@ class PixelObject extends THREE.Object3D {
     SMILE: 1,
     HEART: 2,
     MUSIC_NOTE: 3,
-    EXCLAMATION: 4,
+    SEMICOLON: 4,
   };
-  // For convenience, separate by starting values at 10
+  // Non-pixel shapes, with no explicit shape specs
   static OtherShapes = {
-    PLANET: 10,
+    PLANET: OTHER_SHAPE_START,
   };
 
   static ShapeSpecs = {
@@ -39,7 +40,7 @@ class PixelObject extends THREE.Object3D {
     [PixelObject.Shapes.SMILE]: SmileSpec,
     [PixelObject.Shapes.HEART]: HeartSpec,
     [PixelObject.Shapes.MUSIC_NOTE]: MusicNoteSpec,
-    [PixelObject.Shapes.EXCLAMATION]: ExclamationSpec,
+    [PixelObject.Shapes.SEMICOLON]: SemicolonSpec,
   };
 
   constructor(initialShape, size, transitionSpeed = 1, onFinishTransition = () => { }) {
@@ -166,6 +167,8 @@ class PixelObject extends THREE.Object3D {
       coords: pixelCoords,
     } = pixelShapeSpec;
 
+    const numUsedVertices = pixelShapeSpec.coords.length * pixelShapeSpec.resolution * pixelShapeSpec.resolution * pixelShapeSpec.depth * 36;
+
     pixelSize *= relativeScale;
     const cubeSize = pixelSize / pixelResolution;
     // For convenience we start overall shape at "(0, 0, 0)" but offset for center
@@ -211,8 +214,8 @@ class PixelObject extends THREE.Object3D {
       }
     });
 
-    // Pad leftover vertex values
-    const numRemaining = this.numVertices - noises.length;
+    // Pad leftover vertex values to front and back (keep used values centered)
+    const numRemaining = this.numVertices - numUsedVertices;
     for (let i = 0; i < numRemaining; i++) {
       positions.push(0, 0, 0);
       cubeCenterOffsets.push(0, 0, 0);
@@ -225,22 +228,23 @@ class PixelObject extends THREE.Object3D {
       }
       cubeIndices.push(...new Array(36).fill(cubeIndex++));
     }
+    positions = this.balanceBatches(positions, numUsedVertices * 3, 108);
+    cubeCenterOffsets = this.balanceBatches(cubeCenterOffsets, numUsedVertices * 3, 108);
+    noises = this.balanceBatches(noises, numUsedVertices, 36);
+    cubeRandoms = this.balanceBatches(cubeRandoms, numUsedVertices * 3, 108);
+    cubeIndices = this.balanceBatches(cubeIndices, numUsedVertices, 36);
 
     // Calculate normals
-    // Counterclockwise triangle for outward
     let normals = [];
     for (let i = 0; i < positions.length; i += 9) {
       const va = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
       const vb = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]);
       const vc = new THREE.Vector3(positions[i + 6], positions[i + 7], positions[i + 8]);
 
-      const vcb = new THREE.Vector3().subVectors(vc, vb);
-      const vab = new THREE.Vector3().subVectors(va, vb);
-      vcb.cross(vab);
-      vcb.normalize();
+      const normal = this.getNormal(va, vb, vc);
 
       for (let j = 0; j < 3; j++) {
-        normals.push(vcb.x, vcb.y, vcb.z);
+        normals.push(normal.x, normal.y, normal.z);
       }
     }
 
@@ -283,8 +287,6 @@ class PixelObject extends THREE.Object3D {
     };
 
     this.checkAttributes();
-
-    const numUsedVertices = pixelShapeSpec.coords.length * pixelShapeSpec.resolution * pixelShapeSpec.resolution * pixelShapeSpec.depth;
 
     return { attributes, numUsedVertices };
   }
@@ -382,17 +384,17 @@ class PixelObject extends THREE.Object3D {
     // We want "flat" normals instead of the default normalized ones
     geodesicGeometry.computeVertexNormals();
 
-    const positions = Array.from(geodesicGeometry.getAttribute("position").array);
+    let positions = Array.from(geodesicGeometry.getAttribute("position").array);
     // Triangle centers == normals of vertices
-    const normals = Array.from(geodesicGeometry.getAttribute("normal").array);
+    let normals = Array.from(geodesicGeometry.getAttribute("normal").array);
 
     geodesicGeometry.dispose();
 
     let numUsedVertices = positions.length / 3;
-    const noises = [];
+    let noises = [];
     // Random values to be shared between vertices on the same triangle
-    const triangleRandoms = [];
-    const triangleIndices = [];
+    let triangleRandoms = [];
+    let triangleIndices = [];
     let triangleIndex = 0;
     for (let i = 0; i < numUsedVertices; i++) {
       noises.push(
@@ -427,18 +429,21 @@ class PixelObject extends THREE.Object3D {
         const triangleCenter = new THREE.Vector3(r * Math.cos(theta) * Math.cos(tilt), r * Math.cos(theta) * Math.sin(tilt), r * Math.sin(theta));
         const randomVec = [Math.random(), Math.random(), Math.random()];
 
-        for (let j = 0; j < 3; j++) {
-          const x = triangleCenter.x + maxVertexOffset * (prng() * 2 - 1);
-          const y = triangleCenter.y + maxVertexOffset * (prng() * 2 - 1);
-          const z = triangleCenter.z + maxVertexOffset * (prng() * 2 - 1);
-          ringPositions.push(x, y, z);
+        const vertices = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+        vertices.forEach((v) => {
+          v.x = triangleCenter.x + maxVertexOffset * (prng() * 2 - 1);
+          v.y = triangleCenter.y + maxVertexOffset * (prng() * 2 - 1);
+          v.z = triangleCenter.z + maxVertexOffset * (prng() * 2 - 1);
+          ringPositions.push(v.x, v.y, v.z);
 
-          // For now, don't need to care about normals for ring particles
-          normals.push(0, 0, 0);
           noises.push(0);
           triangleRandoms.push(...randomVec);
           triangleIndices.push(triangleIndex);
-        }
+        });
+        const normal = this.getNormal(vertices[0], vertices[1], vertices[2]);
+        vertices.forEach(() => {
+          normals.push(normal.x, normal.y, normal.z);
+        });
         triangleIndex++;
       }
     });
@@ -460,6 +465,12 @@ class PixelObject extends THREE.Object3D {
       }
       triangleIndices.push(...new Array(3).fill(triangleIndex++));
     }
+
+    positions = this.balanceBatches(positions, numUsedVertices * 3, 9);
+    normals = this.balanceBatches(normals, numUsedVertices * 3, 9);
+    noises = this.balanceBatches(noises, numUsedVertices, 3);
+    triangleRandoms = this.balanceBatches(triangleRandoms, numUsedVertices * 3, 9);
+    triangleIndices = this.balanceBatches(triangleIndices, numUsedVertices, 3);
 
     const indices = [...new Array(this.numVertices).keys()];
 
@@ -502,7 +513,7 @@ class PixelObject extends THREE.Object3D {
   setGeometryAttributes(shape, isTarget = false) {
     let geometryAttributes;
     let numUsedVertices;
-    if (shape < 10) {
+    if (shape < OTHER_SHAPE_START) {
       ({ attributes: geometryAttributes, numUsedVertices } = this.getPixelGeometryAttributes(PixelObject.ShapeSpecs[shape], this.shapeSize, true));
     } else if (shape == PixelObject.OtherShapes.PLANET) {
       ({ attributes: geometryAttributes, numUsedVertices } = this.getPlanetGeometryAttributes(6, true));
@@ -530,6 +541,33 @@ class PixelObject extends THREE.Object3D {
         throw new Error(`Internal error calculating geometry attribute ${attr}: expected size ${this.numVertices} but got ${attributes[attr].array.length / attributes[attr].itemSize}`);
       }
     }
+  }
+
+  /**
+   * Calculate the normal of a triangle formed by va, vb, vc
+   * assuming they are provided in counterclockwise order (for an outwards normal)
+   */
+  getNormal(va, vb, vc) {
+    const vcb = new THREE.Vector3().subVectors(vc, vb);
+    const vab = new THREE.Vector3().subVectors(va, vb);
+    vcb.cross(vab);
+    vcb.normalize();
+
+    return vcb;
+  }
+
+  /**
+   * Return a "balanced" array by shifting batches of elements from the back to the front
+   */
+  balanceBatches(a, start, batchSize) {
+    let mid = Math.floor((a.length - start) / 2);
+    mid -= mid % batchSize;
+    const balanced = [];
+    a.slice(start + mid).forEach((x) => { balanced.push(x) });
+    a.slice(0, start).forEach((x) => { balanced.push(x) });
+    a.slice(start, start + mid).forEach((x) => { balanced.push(x) });
+
+    return balanced;
   }
 
   dispose() {

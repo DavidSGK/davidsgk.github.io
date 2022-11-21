@@ -176,32 +176,22 @@ export const ExclamationSpec = {
   ],
 };
 
-export const Simple1Spec = {
-  width: 9,
-  height: 1,
-  depth: 4,
-  resolution: 4,
-  scale: 1.0,
+export const SemicolonSpec = {
+  width: 2,
+  height: 8,
+  depth: STANDARD_RES + 1,
+  resolution: STANDARD_RES + 1,
+  scale: 0.8,
   coords: [
     [0, 0],
-    [2, 0],
-    [4, 0],
-    [6, 0],
-    [8, 0],
-  ],
-};
-
-export const Simple2Spec = {
-  width: 1,
-  height: 9,
-  depth: 4,
-  resolution: 4,
-  scale: 1.0,
-  coords: [
-    [0, 0],
+    [1, 1],
     [0, 2],
-    [0, 4],
+    [1, 2],
+    [0, 3],
+    [1, 3],
     [0, 6],
-    [0, 8],
+    [1, 6],
+    [0, 7],
+    [1, 7],
   ],
 };

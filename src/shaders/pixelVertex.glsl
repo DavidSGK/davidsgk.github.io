@@ -156,7 +156,7 @@ void main() {
   rotY += 4.0 * PI; // Add more cycles in orbit
   float dRotY = mix(0.0, rotY, progress);
   // Scale orbit randomly and influenced by how originally close the unit was
-  float orbitYScale = (unitRandom.y + targetUnitRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
+  float orbitYScale = (unitRandom.y + targetUnitRandom.y - 1.0) * (9.0 / (cLenXZ + 0.1));
   float radXZ = orbitRadius(cRotY + dRotY, cRotY, cRotY + rotY, cLenXZ, length(tPos.xz), orbitYScale);
 
   newPos.x = cos(cRotY + dRotY) * radXZ;
