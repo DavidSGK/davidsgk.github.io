@@ -2,7 +2,7 @@ import * as THREE from "three";
 import pixelVertexShader from "../shaders/pixelVertex.glsl";
 import pixelFragmentShader from "../shaders/pixelFragment.glsl";
 import { createNoise3D } from "simplex-noise";
-import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, ExclamationSpec } from "./pixel-constants";
+import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, ExclamationSpec } from "./pixel-specs";
 import { shuffle } from "../utils";
 
 /**
@@ -15,7 +15,7 @@ const NOISE_FREQUENCY_MULTIPLIER = 0.2;
 /**
  * Extension of Object3D to more easily manage a pixel shape geometry/material
  * for things like specific animations.
- * 
+ *
  * Is set up to allow transitiong to some "idle" shapes and "target" shapes.
  * These shapes may or may not be pixel shapes.
  * Animations are handled by the vertex shader for the material.
@@ -129,7 +129,7 @@ class PixelObject extends THREE.Object3D {
   /**
    * Get attributes for a pixel shape formed of subdivided cubes.
    * These attributes should be used to enable transitions in the shader.
-   * 
+   *
    * @param {*} pixelWidth width of overall shape in number of pixels
    * @param {*} pixelHeight height of overall shape in number of pixels
    * @param {*} cubeDepth depth of overall shape in number of CUBES, NOT PIXELS
