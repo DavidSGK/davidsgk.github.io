@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import pixelVertexShader from "../shaders/pixelVertex.glsl";
 import pixelFragmentShader from "../shaders/pixelFragment.glsl";
+import Alea from 'alea';
 import { createNoise3D } from "simplex-noise";
 import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, ExclamationSpec } from "./pixel-specs";
 import { shuffle } from "../utils";
@@ -52,7 +53,7 @@ class PixelObject extends THREE.Object3D {
     }
 
     // Match number of vertices to max required
-    // TODO: Currently doesn't consider non-pixel shapes
+    // NOTE: Currently doesn't consider non-pixel shapes
     this.numVertices = Math.max(...Object.values(PixelObject.ShapeSpecs).map((spec) => 36 * spec.coords.length * spec.resolution * spec.resolution * spec.depth));
 
     this.shapeSize = size;
@@ -74,6 +75,7 @@ class PixelObject extends THREE.Object3D {
         targetShape: { type: "int", value: initialShape },
         // Ongoing progression of a transition, [0, 1] TODO: but what about interruptions?
         transProgress: { type: "1f", value: 0 },
+        transEndTime: { type: "1f", value: 0 },
       }, THREE.UniformsLib.lights]),
     });
 
@@ -85,6 +87,10 @@ class PixelObject extends THREE.Object3D {
 
     this.onFinishTransition = onFinishTransition;
     this.inTransition = false;
+
+    // Seed for any generation that requires deterministic behavior
+    // e.g. when target -> current need to look the same
+    this.prngSeed = Math.random();
   }
 
   getCurrentShape() {
@@ -97,6 +103,7 @@ class PixelObject extends THREE.Object3D {
       return;
     }
     // Set target attributes
+    this.prngSeed = Math.random();
     this.setGeometryAttributes(shape, true);
 
     // Update both current and target
@@ -109,11 +116,12 @@ class PixelObject extends THREE.Object3D {
    * e.g. an animation tick
    */
   update() {
-    this.material.uniforms.time.value = performance.now() / 1000;
+    const delta = (1 / 240) * this.transitionSpeed;
+    this.material.uniforms.time.value += delta;
 
     // TODO: make this framerate independent
     if (this.inTransition && this.material.uniforms.transProgress.value < 1) {
-      this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + (1 / 240) * this.transitionSpeed, 1);
+      this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + delta, 1);
     } else if (this.inTransition) {
       // Want this to only fire once
       this.finishTransition();
@@ -126,6 +134,7 @@ class PixelObject extends THREE.Object3D {
   finishTransition() {
     this.material.uniforms.currentShape.value = this.material.uniforms.targetShape.value;
     this.setGeometryAttributes(this.material.uniforms.currentShape.value);
+    this.material.uniforms.transEndTime.value = this.material.uniforms.time.value;
     this.material.uniforms.transProgress.value = 0;
 
     this.inTransition = false;
@@ -366,7 +375,7 @@ class PixelObject extends THREE.Object3D {
   }
 
   getPlanetGeometryAttributes(detail = 3, shuffleTriangles = false) {
-    const geodesicGeometry = new THREE.IcosahedronGeometry(this.shapeSize * 4, detail);
+    const geodesicGeometry = new THREE.IcosahedronGeometry(this.shapeSize * 3, detail);
     // We want "flat" normals instead of the default normalized ones
     geodesicGeometry.computeVertexNormals();
 
@@ -376,7 +385,7 @@ class PixelObject extends THREE.Object3D {
 
     geodesicGeometry.dispose();
 
-    const numUsedVertices = positions.length / 3;
+    let numUsedVertices = positions.length / 3;
     const noises = [];
     // Random values to be shared between vertices on the same triangle
     const triangleRandoms = [];
@@ -400,7 +409,39 @@ class PixelObject extends THREE.Object3D {
       triangleIndex++;
     }
 
-    // TODO: add rings
+    // Add rings
+    const prng = new Alea(this.prngSeed);
+    const radii = [this.shapeSize * 5, this.shapeSize * 6, this.shapeSize * 7];
+    const maxVertexOffset = 0.2;
+    const tilt = Math.PI / 6;
+    const ringDensity = 720;
+
+    const ringPositions = [];
+    radii.forEach((r, ri) => {
+      const thetaOffset = ri * 2 * Math.PI / ringDensity / radii.length;
+      for (let i = 0; i < ringDensity; i++) {
+        const theta = 2 * Math.PI / ringDensity * i + thetaOffset;
+        const triangleCenter = new THREE.Vector3(r * Math.cos(theta) * Math.cos(tilt), r * Math.cos(theta) * Math.sin(tilt), r * Math.sin(theta));
+        const randomVec = [Math.random(), Math.random(), Math.random()];
+
+        for (let j = 0; j < 3; j++) {
+          const x = triangleCenter.x + maxVertexOffset * (prng() * 2 - 1);
+          const y = triangleCenter.y + maxVertexOffset * (prng() * 2 - 1);
+          const z = triangleCenter.z + maxVertexOffset * (prng() * 2 - 1);
+          ringPositions.push(x, y, z);
+
+          // For now, don't need to care about normals for ring particles
+          normals.push(0, 0, 0);
+          noises.push(0);
+          triangleRandoms.push(...randomVec);
+          triangleIndices.push(triangleIndex);
+        }
+        triangleIndex++;
+      }
+    });
+    positions.push(...ringPositions);
+
+    numUsedVertices = positions.length / 3;
 
     // Pad attributes for remaining vertices
     const numRemaining = this.numVertices - numUsedVertices;
@@ -435,6 +476,10 @@ class PixelObject extends THREE.Object3D {
       normal: {
         array: new Float32Array(normals),
         itemSize: 3,
+      },
+      noise: {
+        array: new Float32Array(noises),
+        itemSize: 1,
       },
       unitRandom: {
         array: new Float32Array(triangleRandoms),

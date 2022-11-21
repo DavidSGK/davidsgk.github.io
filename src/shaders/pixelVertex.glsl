@@ -10,6 +10,7 @@ uniform float time;
 uniform int currentShape;
 uniform int targetShape;
 uniform float transProgress;
+uniform float transEndTime;
 
 #if NUM_DIR_LIGHTS > 0
 struct DirectionalLight {
@@ -89,7 +90,7 @@ void main() {
   bool isTargetUnitCube = targetShape < 10;
   float unitIndex = isCurrentUnitCube ? cubeIndex : triangleIndex;
   vec3 unitOffset = isCurrentUnitCube ? cubeCenterOffset : (position - normal);
-  vec3 targetUnitOffset = isTargetUnitCube ? targetCubeCenterOffset : (targetPosition - targetNormal);
+  vec3 tUnitOffset = isTargetUnitCube ? targetCubeCenterOffset : (targetPosition - targetNormal);
 
   // Stagger progress based on unit index (larger indices start/finish later)
   float staggerMax = 0.3;
@@ -105,6 +106,26 @@ void main() {
   float newNoise = noise;
 
   vec3 tPos = targetPosition;
+  vec3 tNorm = targetNormal;
+
+  // Planet rotation
+  if (targetShape == 10) {
+    // instead of newPos, should probably update tPos... but then it'll break for current?
+    vec3 axis = vec3(-sin(PI / 6.0), cos(PI / 6.0), 0.0);
+
+    tPos = rotateAround(tPos, mod(transProgress / 5.0, PI2), axis);
+    tNorm = rotateAround(tNorm, mod(transProgress / 5.0, PI2), axis);
+    tUnitOffset = rotateAround(tUnitOffset, mod(transProgress / 5.0, PI2), axis);
+  }
+  if (currentShape == 10) {
+    // instead of newPos, should probably update tPos... but then it'll break for current?
+    vec3 axis = vec3(-sin(PI / 6.0), cos(PI / 6.0), 0.0);
+
+    // Add 1.0 to account for how much shape would've rotated while being transitioned to
+    newPos = rotateAround(newPos, mod((1.0 + time - transEndTime) / 5.0, PI2), axis);
+    newNorm = rotateAround(newNorm, mod((1.0 + time - transEndTime) / 5.0, PI2), axis);
+    unitOffset = rotateAround(unitOffset, mod((1.0 + time - transEndTime) / 5.0, PI2), axis);
+  }
 
   // Interpolate noise
   newNoise = mix(newNoise, targetNoise, min(progress * 2.0, 1.0));
@@ -118,7 +139,7 @@ void main() {
 
   // Orbit based on unit center
   newPos -= unitOffset;
-  tPos -= targetUnitOffset;
+  tPos -= tUnitOffset;
 
   // Y axis rotation (i.e. flat on XZ plane)
   float cLenXZ = length(newPos.xz);
@@ -145,20 +166,20 @@ void main() {
   newPos.y = mix(newPos.y, tPos.y, progress) * ((unitRandom.x + targetUnitRandom.x) * 2.5 * sin(progress * PI) + 1.0);
 
   // If this unit is supposed to be shrinking to 0 (because it's a leftover), shrink faster
-  if (targetUnitOffset == vec3(0.0, 0.0, 0.0)) {
-    newPos += mix(unitOffset, targetUnitOffset, min(progress * 2.0, 1.0));
+  if (tUnitOffset == vec3(0.0, 0.0, 0.0)) {
+    newPos += mix(unitOffset, tUnitOffset, min(progress * 2.0, 1.0));
   } else {
-    newPos += mix(unitOffset, targetUnitOffset, progress);
+    newPos += mix(unitOffset, tUnitOffset, progress);
   }
-  // newPos += targetUnitOffset;
-  newNorm = mix(normal, targetNormal, progress);
+  // Only linearly interpolating normals for now
+  newNorm = mix(newNorm, tNorm, min(progress * 1.5, 1.0));
 
   // Update position
   gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
 
   // Update vertex color (to be used by fragment shader)
   // Lots of magic numbers here for an aesthetic cycle of colors
-  float h = mod((time * 0.025 + newNoise * 0.125), 1.0);
+  float h = mod((time * 0.125 + newNoise * 0.125), 1.0);
   float s = sin(time * 0.3 + newNoise * 0.4) * newNoise * 0.05 + 0.7;
   vertColor = vec4(hsv2rgb(vec3(h, s, 1.0)), 1.0);
 
