@@ -3,7 +3,7 @@ import Graphic from "./Graphic";
 
 const App = () => {
   return (
-    <React.Fragment>
+    <React.StrictMode>
       <Graphic />
       <section className="main">
         <div className="landing">
@@ -18,7 +18,7 @@ const App = () => {
           </div>
         </div>
       </section>
-    </React.Fragment>
+    </React.StrictMode>
   );
 }
 

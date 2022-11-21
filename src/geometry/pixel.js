@@ -3,6 +3,7 @@ import pixelVertexShader from "../shaders/pixelVertex.glsl";
 import pixelFragmentShader from "../shaders/pixelFragment.glsl";
 import { createNoise3D } from "simplex-noise";
 import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, ExclamationSpec } from "./pixel-constants";
+import { shuffle } from "../utils";
 
 /**
  * Allow using Three.js BufferGeometry to create 3D versions of pixellated text
@@ -35,10 +36,10 @@ class PixelObject extends THREE.Object3D {
     [PixelObject.Shapes.EXCLAMATION]: ExclamationSpec,
   };
 
-  constructor(initialShape, size, onFinishTransition = () => { }) {
+  constructor(initialShape, size, transitionSpeed = 1, onFinishTransition = () => { }) {
     super();
 
-    this.clock = new THREE.Clock();
+    this.transitionSpeed = transitionSpeed;
     this.noise3DGenerator = createNoise3D();
 
     if (initialShape >= Object.keys(PixelObject.Shapes).length) {
@@ -85,12 +86,15 @@ class PixelObject extends THREE.Object3D {
   }
 
   setTargetShape(shape) {
+    // TODO: Handle interruptions
+    if (this.inTransition) {
+      return;
+    }
     // Set target attributes
     this.setGeometryAttributes(shape, true);
 
     // Update both current and target
     this.material.uniforms.targetShape.value = shape;
-    // TODO: Handle interruptions
     this.inTransition = true;
   }
 
@@ -99,10 +103,11 @@ class PixelObject extends THREE.Object3D {
    * e.g. an animation tick
    */
   update() {
-    this.material.uniforms.time.value += this.clock.getDelta();
+    this.material.uniforms.time.value = performance.now() / 1000;
 
+    // TODO: make this framerate independent
     if (this.inTransition && this.material.uniforms.transProgress.value < 1) {
-      this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + 0.005, 1);
+      this.material.uniforms.transProgress.value = Math.min(this.material.uniforms.transProgress.value + (1 / 240) * this.transitionSpeed, 1);
     } else if (this.inTransition) {
       // Want this to only fire once
       this.finishTransition();
@@ -122,7 +127,8 @@ class PixelObject extends THREE.Object3D {
   }
 
   /**
-   * Get a BufferGeometry object formed of subdivided cubes for a specified pixel shape.
+   * Get attributes for a pixel shape formed of subdivided cubes.
+   * These attributes should be used to enable transitions in the shader.
    * 
    * @param {*} pixelWidth width of overall shape in number of pixels
    * @param {*} pixelHeight height of overall shape in number of pixels
@@ -138,9 +144,11 @@ class PixelObject extends THREE.Object3D {
       height: pixelHeight,
       depth: cubeDepth,
       resolution: pixelResolution,
+      scale: relativeScale,
       coords: pixelCoords,
     } = pixelShapeSpec;
 
+    pixelSize *= relativeScale;
     const cubeSize = pixelSize / pixelResolution;
     // For convenience we start overall shape at "(0, 0, 0)" but offset for center
     const offsetX = pixelSize * (pixelWidth / 2) - (cubeSize / 2);
@@ -218,20 +226,7 @@ class PixelObject extends THREE.Object3D {
     let indices = [...new Array(this.numVertices).keys()];
 
     if (shuffleCubes) {
-      const swap = (a, i, j) => {
-        const temp = a[i];
-        a[i] = a[j];
-        a[j] = temp;
-      };
-
-      // Shuffle order of cubes
-      // Fisher-Yates algorithm https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
-      for (let i = 0; i < this.numVertices / 36 - 1; i++) {
-        const toSwap = THREE.MathUtils.randInt(i, this.numVertices / 36 - 1);
-        for (let j = 0; j < 36; j++) {
-          swap(cubeIndices, i * 36 + j, toSwap * 36 + j);
-        }
-      }
+      shuffle(cubeIndices, 36);
     }
 
     // Keys are named to be set directly as vertex shader attributes
@@ -383,6 +378,11 @@ class PixelObject extends THREE.Object3D {
   getNumCubes(shape) {
     const spec = PixelObject.ShapeSpecs[shape];
     return spec.coords.length * spec.resolution * spec.resolution * spec.depth;
+  }
+
+  dispose() {
+    this.geometry.dispose();
+    this.material.dispose();
   }
 };
 

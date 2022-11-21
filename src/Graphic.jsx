@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { DK_PIXEL_COORDS, DK_PIXEL_HEIGHT, DK_PIXEL_WIDTH } from "./geometry/pixel-constants";
 import { PixelObject } from "./geometry/pixel";
 
+const TRANSITION_INTERVAL = 8000;
 const CAMERA_DISTANCE = 25;
 const CAMERA_MOVE_STRENGTH = 8;
 const BOB_DISTANCE = 0.075;
@@ -10,16 +10,55 @@ const BOB_FREQUENCY = 2;
 
 /**
  * Component managing background visual graphic
- * 
+ *
  * TODO: Refactor to be more modularized - right now it's a monolithic mess because
  * I'm still figuring things out
  */
 const Graphic = () => {
+  // Setup variables required for rendering
+  const graphicsRef = useRef(null);
+  const transitionIntervalIdRef = useRef(null);
+
   // Ref for mounting point of scene
   const canvasRef = useRef(null);
+  const [paused, setPaused] = useState(false);
+
+  // Main animation function
+  const animate = () => {
+    const {
+      mainObject,
+      renderer,
+      scene,
+      camera,
+      clock,
+    } = graphicsRef.current;
+
+    // Bobbing animation
+    mainObject.position.y = Math.sin(clock.getElapsedTime() * BOB_FREQUENCY) * BOB_DISTANCE;
+
+    mainObject.update();
+    renderer.render(scene, camera);
+  }
+
+  // Automatically transition between shapes
+  const startTransitions = () => {
+    const { mainObject } = graphicsRef.current;
+
+    transitionIntervalIdRef.current = setInterval(() => {
+      mainObject.setTargetShape((mainObject.getCurrentShape() + 1) % Object.keys(PixelObject.Shapes).length);
+    }, TRANSITION_INTERVAL);
+  };
+
+  const stopTransitions = () => {
+    clearInterval(transitionIntervalIdRef.current);
+    transitionIntervalIdRef.current = null;
+  };
 
   // Note only running effect once
   useEffect(() => {
+    const clock = new THREE.Clock();
+    clock.start();
+
     // Set up scene, camera, renderer for display
     const scene = new THREE.Scene();
 
@@ -30,11 +69,8 @@ const Graphic = () => {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
 
-    const clock = new THREE.Clock();
-    clock.start();
-
     // Main pixel shape visual
-    const mainObject = new PixelObject(0, 1);
+    const mainObject = new PixelObject(0, 1, 1);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff);
     directionalLight.position.set(1, 1, 1);
@@ -42,17 +78,24 @@ const Graphic = () => {
     scene.add(mainObject);
     scene.add(directionalLight);
 
-    // Transition between shapes
-    setInterval(() => {
-      mainObject.setTargetShape((mainObject.getCurrentShape() + 1) % Object.keys(PixelObject.Shapes).length);
-    }, 9000);
+    graphicsRef.current = {
+      clock,
+      scene,
+      camera,
+      renderer,
+      mainObject,
+    };
 
-    renderer.setAnimationLoop(() => {
-      // Bobbing animation
-      mainObject.position.y = Math.sin(clock.getElapsedTime() * BOB_FREQUENCY) * BOB_DISTANCE;
+    startTransitions();
+    renderer.setAnimationLoop(animate);
 
-      mainObject.update();
-      renderer.render(scene, camera);
+    renderer.getContext().canvas.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault();
+      console.log("WebGL context lost");
+    }, false);
+
+    renderer.getContext().canvas.addEventListener("webglcontextrestored", (e) => {
+      console.log("WebGL context restored");
     });
 
     // On resize, update sizes and aspect ratios
@@ -77,7 +120,38 @@ const Graphic = () => {
 
     window.addEventListener("resize", onWindowResizeHandler);
     window.addEventListener("mousemove", onWindowMouseMoveHandler);
+
+    // TEST PAUSE MECHANISM
+    const pauseOnSpace = (e) => {
+      if (e.key === " ") {
+        setPaused((prevPaused) => !prevPaused);
+      }
+    };
+    window.addEventListener("keyup", pauseOnSpace);
+
+    return () => {
+      stopTransitions();
+
+      window.removeEventListener("resize", onWindowResizeHandler);
+      window.removeEventListener("mousemove", onWindowMouseMoveHandler);
+      window.removeEventListener("keyup", pauseOnSpace);
+
+      mainObject.dispose();
+      renderer.dispose();
+    };
   }, []);
+
+  useEffect(() => {
+    const { renderer } = graphicsRef.current;
+
+    if (paused) {
+      renderer.setAnimationLoop(null);
+      stopTransitions();
+    } else {
+      renderer.setAnimationLoop(animate);
+      startTransitions();
+    }
+  }, [paused]);
 
   return (
     <div id="visual">

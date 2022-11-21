@@ -44,19 +44,17 @@ vec3 hsv2rgb(vec3 c) {
   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
-// Angle between 2 vectors
-float angle(vec2 from, vec2 to, bool clockwise) {
+// Angle between 2 vectors in range [0, PI2]
+float angle(vec2 from, vec2 to) {
   // Handle undefined atan case
+  float a = 0.0;
   if (length(from) == 0.0 || length(to) == 0.0) {
-    return 0.0;
+    return a;
   }
   float dp = dot(from, to);
   float det = from.x * to.y - from.y * to.x;
-  if (clockwise) {
-    return atan(dot(from, to), det);
-  } else {
-    return atan(det, dot(from, to));
-  }
+  a = atan(det, dot(from, to));
+  return a < 0.0 ? a + PI2 : a;
 }
 
 vec3 rotateAround(vec3 v, float angle, vec3 axis) {
@@ -98,9 +96,7 @@ void main() {
   vec3 newNorm = normal;
   float newNoise = noise;
 
-  vec3 cCubeCenterOffset = cubeCenterOffset;
   vec3 tPos = targetPosition;
-  vec3 tCubeCenterOffset = targetCubeCenterOffset;
 
   // Interpolate noise
   newNoise = mix(newNoise, targetNoise, min(progress * 2.0, 1.0));
@@ -113,21 +109,25 @@ void main() {
   // Need to set up polar equation such that at the target angle, we are at the correct radius
 
   // Orbit based on cube center
-  newPos -= cCubeCenterOffset;
-  tPos -= tCubeCenterOffset;
+  newPos -= cubeCenterOffset;
+  tPos -= targetCubeCenterOffset;
 
   // Y axis rotation (i.e. flat on XZ plane)
   float cLenXZ = length(newPos.xz);
   float fallbackDir1 = cubeRandom.z > 0.5 ? 1.0 : -1.0;
   float fallbackDir2 = targetCubeRandom.z > 0.5 ? 1.0 : -1.0;
   vec2 cDirXZ = cLenXZ == 0.0 ? fallbackDir1 * vec2(1.0, 0.0) : normalize(newPos.xz);
-  vec2 tDirXZ = tPos.xz == vec2(0.0, 0.0) ? fallbackDir2 * vec2(1.0, 0.0) : normalize(tPos.xz);
-  float cRotY = angle(vec2(1.0, 0.0), cDirXZ, false);
-  float rotY = angle(cDirXZ, tDirXZ, false);
+  vec2 tDirXZ = length(tPos.xz) == 0.0 ? fallbackDir2 * vec2(1.0, 0.0) : normalize(tPos.xz);
+  float cRotY = angle(vec2(1.0, 0.0), cDirXZ);
+  float rotY = angle(cDirXZ, tDirXZ);
+  // Precision issue - sometimes for the same cube, angles close enough to 0/PI2 can cause issues
+  if (rotY + EPSILON >= PI2) {
+    rotY = 0.0;
+  }
   rotY += 4.0 * PI; // Add more cycles in orbit
   float dRotY = mix(0.0, rotY, progress);
   // Scale orbit randomly and influenced by how originally close the cube was
-  float orbitYScale = (cubeRandom.y + targetCubeRandom.y - 1.0) * (8.0 / (cLenXZ + 0.1));
+  float orbitYScale = (cubeRandom.y + targetCubeRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
   float radXZ = orbitRadius(cRotY + dRotY, cRotY, cRotY + rotY, cLenXZ, length(tPos.xz), orbitYScale);
 
   newPos.x = cos(cRotY + dRotY) * radXZ;
@@ -137,10 +137,10 @@ void main() {
   newPos.y = mix(newPos.y, tPos.y, progress) * ((cubeRandom.x + targetCubeRandom.x) * 2.5 * sin(progress * PI) + 1.0);
 
   // If this cube is supposed to be shrinking to 0 (because it's a leftover), shrink faster
-  if (tCubeCenterOffset == vec3(0.0, 0.0, 0.0)) {
-    newPos += mix(cCubeCenterOffset, tCubeCenterOffset, min(progress * 2.0, 1.0));
+  if (targetCubeCenterOffset == vec3(0.0, 0.0, 0.0)) {
+    newPos += mix(cubeCenterOffset, targetCubeCenterOffset, min(progress * 2.0, 1.0));
   } else {
-    newPos += mix(cCubeCenterOffset, tCubeCenterOffset, progress);
+    newPos += mix(cubeCenterOffset, targetCubeCenterOffset, progress);
   }
   newNorm = mix(normal, targetNormal, progress);
 
@@ -158,7 +158,7 @@ void main() {
   vec3 diffuseColor = vec3(0.0, 0.0, 0.0);
   for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
     // Clamp because we don't actually want full dark for non-facing
-    float diffuseStrength = clamp(dot(newNorm, directionalLights[i].direction), 0.3, 1.0);
+    float diffuseStrength = clamp(dot(newNorm, directionalLights[i].direction), 0.25, 1.0);
     diffuseColor += diffuseStrength * directionalLights[i].color;
   }
   vertColor *= vec4(diffuseColor, 1.0);
