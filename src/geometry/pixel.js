@@ -77,6 +77,9 @@ class PixelObject extends THREE.Object3D {
         transProgress: { type: "1f", value: 0 },
         transEndTime: { type: "1f", value: 0 },
       }, THREE.UniformsLib.lights]),
+      defines: {
+        INITIAL_HUE: Math.random(),
+      },
     });
 
     this.setGeometryAttributes(initialShape);

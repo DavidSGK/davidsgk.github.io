@@ -179,7 +179,7 @@ void main() {
 
   // Update vertex color (to be used by fragment shader)
   // Lots of magic numbers here for an aesthetic cycle of colors
-  float h = mod((time * 0.125 + newNoise * 0.125), 1.0);
+  float h = mod(INITIAL_HUE + (time * 0.125 + newNoise * 0.125), 1.0);
   float s = sin(time * 0.3 + newNoise * 0.4) * newNoise * 0.05 + 0.7;
   vertColor = vec4(hsv2rgb(vec3(h, s, 1.0)), 1.0);
 
