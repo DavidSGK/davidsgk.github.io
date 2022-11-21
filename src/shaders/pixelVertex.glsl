@@ -25,14 +25,15 @@ attribute float index;
 attribute vec3 normal;
 attribute vec3 cubeCenterOffset;
 attribute float noise;
-attribute vec3 cubeRandom;
+attribute vec3 unitRandom;
 attribute float cubeIndex;
+attribute float triangleIndex;
 
 attribute vec3 targetPosition;
 attribute vec3 targetNormal;
 attribute vec3 targetCubeCenterOffset;
 attribute float targetNoise;
-attribute vec3 targetCubeRandom;
+attribute vec3 targetUnitRandom;
 
 varying vec4 vertColor;
 
@@ -83,10 +84,17 @@ float orbitRadius(float curAngle, float startAngle, float endAngle, float startR
 }
 
 void main() {
-  // Stagger progress based on cube index (larger indices start/finish later)
+  // What's the smallest "unit" of transition? Cubes or triangles?
+  bool isCurrentUnitCube = currentShape < 10;
+  bool isTargetUnitCube = targetShape < 10;
+  float unitIndex = isCurrentUnitCube ? cubeIndex : triangleIndex;
+  vec3 unitOffset = isCurrentUnitCube ? cubeCenterOffset : (position - normal);
+  vec3 targetUnitOffset = isTargetUnitCube ? targetCubeCenterOffset : (targetPosition - targetNormal);
+
+  // Stagger progress based on unit index (larger indices start/finish later)
   float staggerMax = 0.3;
   float progress = 0.0;
-  float progressStart = cubeIndex / (float(numVertices) / 36.0) * staggerMax;
+  float progressStart = unitIndex / (float(numVertices) / (isCurrentUnitCube ? 36.0 : 3.0)) * staggerMax;
   if (transProgress > progressStart) {
     progress = min(1.0 / (1.0 - staggerMax) * (transProgress - progressStart), 1.0);
   }
@@ -108,40 +116,41 @@ void main() {
   // Polar equations should also play more nicely with easing effects on the overall transition
   // Need to set up polar equation such that at the target angle, we are at the correct radius
 
-  // Orbit based on cube center
-  newPos -= cubeCenterOffset;
-  tPos -= targetCubeCenterOffset;
+  // Orbit based on unit center
+  newPos -= unitOffset;
+  tPos -= targetUnitOffset;
 
   // Y axis rotation (i.e. flat on XZ plane)
   float cLenXZ = length(newPos.xz);
-  float fallbackDir1 = cubeRandom.z > 0.5 ? 1.0 : -1.0;
-  float fallbackDir2 = targetCubeRandom.z > 0.5 ? 1.0 : -1.0;
+  float fallbackDir1 = unitRandom.z > 0.5 ? 1.0 : -1.0;
+  float fallbackDir2 = targetUnitRandom.z > 0.5 ? 1.0 : -1.0;
   vec2 cDirXZ = cLenXZ == 0.0 ? fallbackDir1 * vec2(1.0, 0.0) : normalize(newPos.xz);
   vec2 tDirXZ = length(tPos.xz) == 0.0 ? fallbackDir2 * vec2(1.0, 0.0) : normalize(tPos.xz);
   float cRotY = angle(vec2(1.0, 0.0), cDirXZ);
   float rotY = angle(cDirXZ, tDirXZ);
-  // Precision issue - sometimes for the same cube, angles close enough to 0/PI2 can cause issues
+  // Precision issue - sometimes for the same unit, angles close enough to 0/PI2 can cause issues
   if (rotY + EPSILON >= PI2) {
     rotY = 0.0;
   }
   rotY += 4.0 * PI; // Add more cycles in orbit
   float dRotY = mix(0.0, rotY, progress);
-  // Scale orbit randomly and influenced by how originally close the cube was
-  float orbitYScale = (cubeRandom.y + targetCubeRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
+  // Scale orbit randomly and influenced by how originally close the unit was
+  float orbitYScale = (unitRandom.y + targetUnitRandom.y - 1.0) * (10.0 / (cLenXZ + 0.1));
   float radXZ = orbitRadius(cRotY + dRotY, cRotY, cRotY + rotY, cLenXZ, length(tPos.xz), orbitYScale);
 
   newPos.x = cos(cRotY + dRotY) * radXZ;
   newPos.z = sin(cRotY + dRotY) * radXZ;
 
   // Simple interpolation for Y for now
-  newPos.y = mix(newPos.y, tPos.y, progress) * ((cubeRandom.x + targetCubeRandom.x) * 2.5 * sin(progress * PI) + 1.0);
+  newPos.y = mix(newPos.y, tPos.y, progress) * ((unitRandom.x + targetUnitRandom.x) * 2.5 * sin(progress * PI) + 1.0);
 
-  // If this cube is supposed to be shrinking to 0 (because it's a leftover), shrink faster
-  if (targetCubeCenterOffset == vec3(0.0, 0.0, 0.0)) {
-    newPos += mix(cubeCenterOffset, targetCubeCenterOffset, min(progress * 2.0, 1.0));
+  // If this unit is supposed to be shrinking to 0 (because it's a leftover), shrink faster
+  if (targetUnitOffset == vec3(0.0, 0.0, 0.0)) {
+    newPos += mix(unitOffset, targetUnitOffset, min(progress * 2.0, 1.0));
   } else {
-    newPos += mix(cubeCenterOffset, targetCubeCenterOffset, progress);
+    newPos += mix(unitOffset, targetUnitOffset, progress);
   }
+  // newPos += targetUnitOffset;
   newNorm = mix(normal, targetNormal, progress);
 
   // Update position

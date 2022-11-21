@@ -28,6 +28,11 @@ class PixelObject extends THREE.Object3D {
     MUSIC_NOTE: 3,
     EXCLAMATION: 4,
   };
+  // For convenience, separate by starting values at 10
+  static OtherShapes = {
+    PLANET: 10,
+  };
+
   static ShapeSpecs = {
     [PixelObject.Shapes.DK]: DKSpec,
     [PixelObject.Shapes.SMILE]: SmileSpec,
@@ -47,6 +52,7 @@ class PixelObject extends THREE.Object3D {
     }
 
     // Match number of vertices to max required
+    // TODO: Currently doesn't consider non-pixel shapes
     this.numVertices = Math.max(...Object.values(PixelObject.ShapeSpecs).map((spec) => 36 * spec.coords.length * spec.resolution * spec.resolution * spec.depth));
 
     this.shapeSize = size;
@@ -61,7 +67,7 @@ class PixelObject extends THREE.Object3D {
       uniforms: THREE.UniformsUtils.merge([{
         numVertices: { type: "int", value: this.numVertices },
         // "Used" as in visible and not zeroed because they're not necessary for current shape
-        numUsedVertices: { type: "int", value: this.getNumCubes(initialShape) * 36 },
+        numUsedVertices: { type: "int", value: this.numVertices },
         // Overall time tracked by clock
         time: { type: "1f", value: 0 },
         currentShape: { type: "int", value: initialShape },
@@ -194,14 +200,17 @@ class PixelObject extends THREE.Object3D {
     });
 
     // Pad leftover vertex values
-    const numRemaining = noises.length;
-    for (let i = 0; i < this.numVertices - numRemaining; i++) {
+    const numRemaining = this.numVertices - noises.length;
+    for (let i = 0; i < numRemaining; i++) {
       positions.push(0, 0, 0);
       cubeCenterOffsets.push(0, 0, 0);
       noises.push(0);
-      cubeRandoms.push(0, 0, 0);
     }
-    for (let i = 0; i < this.numVertices - numRemaining; i += 36) {
+    for (let i = 0; i < numRemaining; i += 36) {
+      const randomVec = [Math.random(), Math.random(), Math.random()];
+      for (let j = 0; j < 36; j++) {
+        cubeRandoms.push(...randomVec);
+      }
       cubeIndices.push(...new Array(36).fill(cubeIndex++));
     }
 
@@ -251,7 +260,7 @@ class PixelObject extends THREE.Object3D {
         array: new Float32Array(noises),
         itemSize: 1,
       },
-      cubeRandom: {
+      unitRandom: {
         array: new Float32Array(cubeRandoms),
         itemSize: 3,
       },
@@ -261,14 +270,11 @@ class PixelObject extends THREE.Object3D {
       },
     };
 
-    // Sanity check for correct lengths
-    for (const attr in attributes) {
-      if (attributes[attr].array.length / attributes[attr].itemSize !== this.numVertices) {
-        throw new Error(`Internal error calculating geometry attribute ${attr}: expected size ${this.numVertices} but got ${attributes[attr].array.length / attributes[attr].itemSize}`);
-      }
-    }
+    this.checkAttributes();
 
-    return attributes;
+    const numUsedVertices = pixelShapeSpec.coords.length * pixelShapeSpec.resolution * pixelShapeSpec.resolution * pixelShapeSpec.depth;
+
+    return { attributes, numUsedVertices };
   }
 
   /**
@@ -359,15 +365,109 @@ class PixelObject extends THREE.Object3D {
     return { vertexPositions, centerOffsets: offsets, vertexNoises };
   }
 
+  getPlanetGeometryAttributes(detail = 3, shuffleTriangles = false) {
+    const geodesicGeometry = new THREE.IcosahedronGeometry(this.shapeSize * 4, detail);
+    // We want "flat" normals instead of the default normalized ones
+    geodesicGeometry.computeVertexNormals();
+
+    const positions = Array.from(geodesicGeometry.getAttribute("position").array);
+    // Triangle centers == normals of vertices
+    const normals = Array.from(geodesicGeometry.getAttribute("normal").array);
+
+    geodesicGeometry.dispose();
+
+    const numUsedVertices = positions.length / 3;
+    const noises = [];
+    // Random values to be shared between vertices on the same triangle
+    const triangleRandoms = [];
+    const triangleIndices = [];
+    let triangleIndex = 0;
+    for (let i = 0; i < numUsedVertices; i++) {
+      noises.push(
+        this.noise3DGenerator(
+          positions[i] * NOISE_FREQUENCY_MULTIPLIER,
+          positions[i + 1] * NOISE_FREQUENCY_MULTIPLIER,
+          positions[i + 2] * NOISE_FREQUENCY_MULTIPLIER,
+        ) * 0.5 + 0.5
+      );
+    }
+    for (let i = 0; i < numUsedVertices; i += 3) {
+      const randomVec = [Math.random(), Math.random(), Math.random()];
+      for (let j = 0; j < 3; j++) {
+        triangleRandoms.push(...randomVec);
+      }
+      triangleIndices.push(triangleIndex, triangleIndex, triangleIndex);
+      triangleIndex++;
+    }
+
+    // TODO: add rings
+
+    // Pad attributes for remaining vertices
+    const numRemaining = this.numVertices - numUsedVertices;
+    for (let i = 0; i < numRemaining; i++) {
+      positions.push(0, 0, 0);
+      normals.push(0, 0, 0);
+      noises.push(0);
+    }
+    for (let i = 0; i < numRemaining; i += 3) {
+      const randomVec = [Math.random(), Math.random(), Math.random()];
+      for (let j = 0; j < 3; j++) {
+        triangleRandoms.push(...randomVec);
+      }
+      triangleIndices.push(...new Array(3).fill(triangleIndex++));
+    }
+
+    const indices = [...new Array(this.numVertices).keys()];
+
+    if (shuffleTriangles) {
+      shuffle(triangleIndices, 3);
+    }
+
+    const attributes = {
+      position: {
+        array: new Float32Array(positions),
+        itemSize: 3,
+      },
+      index: {
+        array: new Float32Array(indices),
+        itemSize: 1,
+      },
+      normal: {
+        array: new Float32Array(normals),
+        itemSize: 3,
+      },
+      unitRandom: {
+        array: new Float32Array(triangleRandoms),
+        itemSize: 3,
+      },
+      triangleIndex: {
+        array: new Float32Array(triangleIndices),
+        itemSize: 1,
+      },
+    };
+
+    this.checkAttributes(attributes);
+
+    return { attributes, numUsedVertices };
+  }
+
   setGeometryAttributes(shape, isTarget = false) {
-    const geometryAttributes = this.getPixelGeometryAttributes(PixelObject.ShapeSpecs[shape], this.shapeSize, true);
+    let geometryAttributes;
+    let numUsedVertices;
+    if (shape < 10) {
+      ({ attributes: geometryAttributes, numUsedVertices } = this.getPixelGeometryAttributes(PixelObject.ShapeSpecs[shape], this.shapeSize, true));
+    } else if (shape == PixelObject.OtherShapes.PLANET) {
+      ({ attributes: geometryAttributes, numUsedVertices } = this.getPlanetGeometryAttributes(6, true));
+    } else {
+      throw new Error("Invalid shape specified.");
+    }
+
     for (const attr in geometryAttributes) {
       const attrKey = isTarget ? "target" + attr.charAt(0).toUpperCase() + attr.slice(1) : attr;
       this.geometry.setAttribute(attrKey, new THREE.BufferAttribute(geometryAttributes[attr].array, geometryAttributes[attr].itemSize));
       this.geometry.getAttribute(attrKey).needsUpdate = true;
     }
     // Also update used vertex count to allow adjusting transitions and handling leftover vertices
-    const numUsedVertices = this.getNumCubes(shape) * 36;
     if (!isTarget) {
       this.material.uniforms.numUsedVertices.value = numUsedVertices;
     } else {
@@ -375,9 +475,13 @@ class PixelObject extends THREE.Object3D {
     }
   }
 
-  getNumCubes(shape) {
-    const spec = PixelObject.ShapeSpecs[shape];
-    return spec.coords.length * spec.resolution * spec.resolution * spec.depth;
+  checkAttributes(attributes) {
+    // Sanity check for correct lengths
+    for (const attr in attributes) {
+      if (attributes[attr].array.length / attributes[attr].itemSize !== this.numVertices) {
+        throw new Error(`Internal error calculating geometry attribute ${attr}: expected size ${this.numVertices} but got ${attributes[attr].array.length / attributes[attr].itemSize}`);
+      }
+    }
   }
 
   dispose() {
