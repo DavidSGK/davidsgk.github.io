@@ -165,6 +165,11 @@ void main() {
   // Simple interpolation for Y for now
   newPos.y = mix(newPos.y, tPos.y, progress) * ((unitRandom.x + targetUnitRandom.x) * 2.5 * sin(progress * PI) + 1.0);
 
+  // Add rotation of units during transition
+  vec3 axis = mix(unitRandom, targetUnitRandom, progress);
+  unitOffset = rotateAround(unitOffset, progress * PI2, axis);
+  tUnitOffset = rotateAround(tUnitOffset, progress * PI2, axis);
+
   // If this unit is supposed to be shrinking to 0 (because it's a leftover), shrink faster
   if (tUnitOffset == vec3(0.0, 0.0, 0.0)) {
     newPos += mix(unitOffset, tUnitOffset, min(progress * 2.0, 1.0));

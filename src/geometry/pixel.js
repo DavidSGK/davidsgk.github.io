@@ -419,7 +419,7 @@ class PixelObject extends THREE.Object3D {
     const radii = [this.shapeSize * 5, this.shapeSize * 6, this.shapeSize * 7];
     const maxVertexOffset = 0.2;
     const tilt = Math.PI / 6;
-    const ringDensity = 720;
+    const ringDensity = 1080;
 
     const ringPositions = [];
     radii.forEach((r, ri) => {

@@ -8,7 +8,7 @@ const swap = (a, i, j) => {
 
 /**
  * Shuffle using Fisher-Yates algorithm https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
- * 
+ *
  * Can specify size of contiguous "batches" to shuffle instead of all elements
  * @param {any[]} a
  * @param {int} batchSize
@@ -23,4 +23,5 @@ export const shuffle = (a, batchSize = 1) => {
       swap(a, i * batchSize + j, toSwap * batchSize + j);
     }
   }
+  return a;
 };

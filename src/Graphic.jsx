@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PixelObject } from "./geometry/pixel";
+import { shuffle } from "./utils";
 
 const TRANSITION_INTERVAL = 8000;
 const CAMERA_DISTANCE = 25;
@@ -23,6 +24,11 @@ const Graphic = () => {
   const canvasRef = useRef(null);
   const [paused, setPaused] = useState(false);
 
+  const shapesRef = useRef({
+    shapes: shuffle([PixelObject.Shapes.SMILE, PixelObject.Shapes.SEMICOLON, PixelObject.Shapes.MUSIC_NOTE, PixelObject.OtherShapes.PLANET]).concat(PixelObject.Shapes.DK),
+    shapeIndex: 0,
+  });
+
   // Main animation function
   const animate = () => {
     const {
@@ -42,10 +48,12 @@ const Graphic = () => {
 
   // Automatically transition between shapes
   const startTransitions = () => {
-    const { mainObject } = graphicsRef.current;
-
     transitionIntervalIdRef.current = setInterval(() => {
-      mainObject.setTargetShape((mainObject.getCurrentShape() + 1) % Object.keys(PixelObject.Shapes).length);
+      const { mainObject } = graphicsRef.current;
+      const { shapes, shapeIndex } = shapesRef.current;
+
+      mainObject.setTargetShape(shapes[shapeIndex]);
+      Object.assign(shapesRef.current, { shapeIndex: (shapeIndex + 1) % shapes.length });
     }, TRANSITION_INTERVAL);
   };
 
@@ -70,7 +78,7 @@ const Graphic = () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     // Main pixel shape visual
-    const mainObject = new PixelObject(0, 1, 1);
+    const mainObject = new PixelObject(PixelObject.Shapes.DK, 1, 1);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff);
     directionalLight.position.set(1, 1, 1);
@@ -86,7 +94,6 @@ const Graphic = () => {
       mainObject,
     };
 
-    startTransitions();
     renderer.setAnimationLoop(animate);
 
     renderer.getContext().canvas.addEventListener("webglcontextlost", (e) => {
