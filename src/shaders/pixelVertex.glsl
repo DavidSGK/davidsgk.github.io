@@ -74,6 +74,15 @@ vec3 rotateAround(vec3 v, float angle, vec3 axis) {
   return rotMat * v;
 }
 
+// Cubic in-out ease based on progress in [0, 1]
+float cubicInOut(float progress) {
+  if (progress < 0.5) {
+    return 3.0 * pow3(progress);
+  } else {
+    return 1.0 - 0.5 * pow3(-2.0 * progress + 2.0);
+  }
+}
+
 float orbitRadius(float curAngle, float startAngle, float endAngle, float startRadius, float endRadius, float scale) {
   if (startAngle == endAngle) {
     return startRadius;
@@ -100,6 +109,9 @@ void main() {
     progress = min(1.0 / (1.0 - staggerMax) * (transProgress - progressStart), 1.0);
   }
 
+  // Ease animation
+  progress = cubicInOut(progress);
+
   vec3 newPos = position;
   // Need to also update normal based on any transformations to vertices
   vec3 newNorm = normal;
@@ -113,18 +125,18 @@ void main() {
     // instead of newPos, should probably update tPos... but then it'll break for current?
     vec3 axis = vec3(-sin(PI / 6.0), cos(PI / 6.0), 0.0);
 
-    tPos = rotateAround(tPos, mod(transProgress / 5.0, PI2), axis);
-    tNorm = rotateAround(tNorm, mod(transProgress / 5.0, PI2), axis);
-    tUnitOffset = rotateAround(tUnitOffset, mod(transProgress / 5.0, PI2), axis);
+    tPos = rotateAround(tPos, mod(transProgress / 4.0, PI2), axis);
+    tNorm = rotateAround(tNorm, mod(transProgress / 4.0, PI2), axis);
+    tUnitOffset = rotateAround(tUnitOffset, mod(transProgress / 4.0, PI2), axis);
   }
   if (currentShape == 10) {
     // instead of newPos, should probably update tPos... but then it'll break for current?
     vec3 axis = vec3(-sin(PI / 6.0), cos(PI / 6.0), 0.0);
 
     // Add 1.0 to account for how much shape would've rotated while being transitioned to
-    newPos = rotateAround(newPos, mod((1.0 + time - transEndTime) / 5.0, PI2), axis);
-    newNorm = rotateAround(newNorm, mod((1.0 + time - transEndTime) / 5.0, PI2), axis);
-    unitOffset = rotateAround(unitOffset, mod((1.0 + time - transEndTime) / 5.0, PI2), axis);
+    newPos = rotateAround(newPos, mod((1.0 + time - transEndTime) / 4.0, PI2), axis);
+    newNorm = rotateAround(newNorm, mod((1.0 + time - transEndTime) / 4.0, PI2), axis);
+    unitOffset = rotateAround(unitOffset, mod((1.0 + time - transEndTime) / 4.0, PI2), axis);
   }
 
   // Interpolate noise
@@ -163,7 +175,7 @@ void main() {
   newPos.z = sin(cRotY + dRotY) * radXZ;
 
   // Simple interpolation for Y for now
-  newPos.y = mix(newPos.y, tPos.y, progress) * ((unitRandom.x + targetUnitRandom.x) * 2.5 * sin(progress * PI) + 1.0);
+  newPos.y = mix(newPos.y, tPos.y, progress) * ((unitRandom.x + targetUnitRandom.x) * 2.0 * sin(progress * PI) + 1.0);
 
   // Add rotation of units during transition
   vec3 axis = mix(unitRandom, targetUnitRandom, progress);
