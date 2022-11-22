@@ -282,8 +282,6 @@ export default class GeometryCalculator {
     let noises: number[] = [];
     // Random values to be shared between vertices on the same triangle
     let triangleRandoms: number[] = [];
-    let triangleIndices: number[] = [];
-    let triangleIndex = 0;
     for (let i = 0; i < numUsedVertices; i += 1) {
       noises.push(
         this.n3Dg(positions[i], positions[i + 1], positions[i + 2]) * 0.5 + 0.5,
@@ -294,8 +292,6 @@ export default class GeometryCalculator {
       for (let j = 0; j < 3; j += 1) {
         triangleRandoms.push(...randomVec);
       }
-      triangleIndices.push(triangleIndex, triangleIndex, triangleIndex);
-      triangleIndex += 1;
     }
 
     // Add rings
@@ -325,11 +321,10 @@ export default class GeometryCalculator {
           v.x = triangleCenter.x + maxVertexOffset * (this.rng() * 2 - 1);
           v.y = triangleCenter.y + maxVertexOffset * (this.rng() * 2 - 1);
           v.z = triangleCenter.z + maxVertexOffset * (this.rng() * 2 - 1);
-          ringPositions.push(v.x, v.y, v.z);
 
+          ringPositions.push(v.x, v.y, v.z);
           noises.push(0);
           triangleRandoms.push(...randomVec);
-          triangleIndices.push(triangleIndex);
         }
         const normal = calculateNormal(
           triangleVertices[0],
@@ -339,7 +334,6 @@ export default class GeometryCalculator {
         for (let j = 0; j < triangleVertices.length; j += 1) {
           normals.push(normal.x, normal.y, normal.z);
         }
-        triangleIndex += 1;
       }
     });
     positions.push(...ringPositions);
@@ -358,17 +352,19 @@ export default class GeometryCalculator {
       for (let j = 0; j < 3; j += 1) {
         triangleRandoms.push(...randomVec);
       }
-      triangleIndices.push(...new Array(3).fill((triangleIndex += 1)));
     }
 
     positions = balanceBatches(positions, numUsedVertices * 3, 9);
     normals = balanceBatches(normals, numUsedVertices * 3, 9);
     noises = balanceBatches(noises, numUsedVertices, 3);
     triangleRandoms = balanceBatches(triangleRandoms, numUsedVertices * 3, 9);
-    triangleIndices = balanceBatches(triangleIndices, numUsedVertices, 3);
 
     const indices = [...new Array(this.numVertices).keys()];
 
+    const triangleIndices: number[] = new Array(this.numVertices);
+    for (let i = 0; i < this.numVertices / 3; i += 1) {
+      triangleIndices.fill(i, i * 3, i * 3 + 3);
+    }
     if (shuffleTriangles) {
       shuffle(triangleIndices, 3);
     }
