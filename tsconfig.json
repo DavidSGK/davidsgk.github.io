@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "isolatedModules": true,
+    "lib": ["es2020"],
+    "moduleResolution": "node",
+    "target": "ES6"
+  }
+}

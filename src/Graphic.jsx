@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { PixelObject } from "./geometry/pixel";
-import { shuffle } from "./utils";
+import PixelObject from "./geometry/pixel";
+import { shuffle } from "./utils.ts";
 
 const TRANSITION_INTERVAL = 8000;
 const CAMERA_DISTANCE = 25;
@@ -15,7 +15,7 @@ const BOB_FREQUENCY = 2;
  * TODO: Refactor to be more modularized - right now it's a monolithic mess because
  * I'm still figuring things out
  */
-const Graphic = () => {
+function Graphic() {
   // Setup variables required for rendering
   const graphicsRef = useRef(null);
   const transitionIntervalIdRef = useRef(null);
@@ -25,26 +25,26 @@ const Graphic = () => {
   const [paused, setPaused] = useState(false);
 
   const shapesRef = useRef({
-    shapes: shuffle([PixelObject.Shapes.SMILE, PixelObject.Shapes.SEMICOLON, PixelObject.Shapes.MUSIC_NOTE, PixelObject.OtherShapes.PLANET]).concat(PixelObject.Shapes.DK),
+    shapes: shuffle([
+      PixelObject.Shapes.SMILE,
+      PixelObject.Shapes.SEMICOLON,
+      PixelObject.Shapes.MUSIC_NOTE,
+      PixelObject.OtherShapes.PLANET,
+    ]).concat(PixelObject.Shapes.DK),
     shapeIndex: 0,
   });
 
   // Main animation function
   const animate = () => {
-    const {
-      mainObject,
-      renderer,
-      scene,
-      camera,
-      clock,
-    } = graphicsRef.current;
+    const { mainObject, renderer, scene, camera, clock } = graphicsRef.current;
 
     // Bobbing animation
-    mainObject.position.y = Math.sin(clock.getElapsedTime() * BOB_FREQUENCY) * BOB_DISTANCE;
+    mainObject.position.y =
+      Math.sin(clock.getElapsedTime() * BOB_FREQUENCY) * BOB_DISTANCE;
 
     mainObject.update();
     renderer.render(scene, camera);
-  }
+  };
 
   // Automatically transition between shapes
   const startTransitions = () => {
@@ -53,7 +53,9 @@ const Graphic = () => {
       const { shapes, shapeIndex } = shapesRef.current;
 
       mainObject.setTargetShape(shapes[shapeIndex]);
-      Object.assign(shapesRef.current, { shapeIndex: (shapeIndex + 1) % shapes.length });
+      Object.assign(shapesRef.current, {
+        shapeIndex: (shapeIndex + 1) % shapes.length,
+      });
     }, TRANSITION_INTERVAL);
   };
 
@@ -70,10 +72,19 @@ const Graphic = () => {
     // Set up scene, camera, renderer for display
     const scene = new THREE.Scene();
 
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      1,
+      1000,
+    );
     camera.position.set(0, 0, CAMERA_DISTANCE);
 
-    const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, alpha: true, antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvasRef.current,
+      alpha: true,
+      antialias: true,
+    });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -96,14 +107,20 @@ const Graphic = () => {
 
     renderer.setAnimationLoop(animate);
 
-    renderer.getContext().canvas.addEventListener("webglcontextlost", (e) => {
-      e.preventDefault();
-      console.log("WebGL context lost");
-    }, false);
+    renderer.getContext().canvas.addEventListener(
+      "webglcontextlost",
+      (e) => {
+        e.preventDefault();
+        console.log("WebGL context lost");
+      },
+      false,
+    );
 
-    renderer.getContext().canvas.addEventListener("webglcontextrestored", (e) => {
-      console.log("WebGL context restored");
-    });
+    renderer
+      .getContext()
+      .canvas.addEventListener("webglcontextrestored", () => {
+        console.log("WebGL context restored");
+      });
 
     // On resize, update sizes and aspect ratios
     const onWindowResizeHandler = () => {
@@ -115,8 +132,13 @@ const Graphic = () => {
     // On mouse move, skew view a little bit
     const onWindowMouseMoveHandler = (e) => {
       // Distance from window center, clamped
-      const dx = (e.pageX - window.innerWidth / 2) / window.innerWidth * CAMERA_MOVE_STRENGTH;
-      const dy = (e.pageY - window.innerHeight / 2) / window.innerHeight * CAMERA_MOVE_STRENGTH * -1;
+      const dx =
+        ((e.pageX - window.innerWidth / 2) / window.innerWidth) *
+        CAMERA_MOVE_STRENGTH;
+      const dy =
+        ((e.pageY - window.innerHeight / 2) / window.innerHeight) *
+        CAMERA_MOVE_STRENGTH *
+        -1;
 
       // TODO: Could probably improve by determining new pos based on rotation matrix
       camera.position.x = THREE.MathUtils.lerp(camera.position.x, dx, 0.1);

@@ -3,8 +3,8 @@
 }
 
 @font-face {
-  font-family: 'Pixel7';
-  src: url('/assets/Pixel7.ttf');
+  font-family: "Pixel7";
+  src: url("/assets/Pixel7.ttf");
 }
 
 html,
@@ -13,9 +13,8 @@ body {
   height: 100%;
   margin: 0;
 
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
-    'Helvetica Neue', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   font-size: 16px;
 }
 
@@ -134,6 +133,6 @@ h3 {
 }
 
 .pixel {
-  font-family: 'Pixel7';
+  font-family: "Pixel7";
   filter: contrast(1);
 }
