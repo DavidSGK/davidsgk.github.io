@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
+    "allowJs": true,
     "isolatedModules": true,
-    "lib": ["es2020"],
+    "lib": ["es2020", "DOM"],
     "moduleResolution": "node",
+    "outDir": "dist",
     "target": "ES6"
-  }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.js", "src/**/*.jsx"]
 }

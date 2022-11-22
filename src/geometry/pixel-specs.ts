@@ -1,6 +1,15 @@
 const STANDARD_RES = 3;
 
-export const DKSpec = {
+export interface PixelShapeSpec {
+  width: number;
+  height: number;
+  depth: number;
+  resolution: number;
+  scale: number;
+  coords: [number, number][];
+}
+
+export const DKSpec: PixelShapeSpec = {
   width: 9,
   height: 7,
   depth: STANDARD_RES,
@@ -40,7 +49,7 @@ export const DKSpec = {
   ],
 };
 
-export const SmileSpec = {
+export const SmileSpec: PixelShapeSpec = {
   width: 7,
   height: 7,
   depth: STANDARD_RES + 1,
@@ -63,7 +72,7 @@ export const SmileSpec = {
   ],
 };
 
-export const HeartSpec = {
+export const HeartSpec: PixelShapeSpec = {
   width: 7,
   height: 6,
   depth: STANDARD_RES,
@@ -100,7 +109,7 @@ export const HeartSpec = {
   ],
 };
 
-export const MusicNoteSpec = {
+export const MusicNoteSpec: PixelShapeSpec = {
   width: 10,
   height: 13,
   depth: STANDARD_RES,
@@ -160,7 +169,7 @@ export const MusicNoteSpec = {
   ],
 };
 
-export const ExclamationSpec = {
+export const ExclamationSpec: PixelShapeSpec = {
   width: 1,
   height: 7,
   depth: STANDARD_RES * 2,
@@ -176,7 +185,7 @@ export const ExclamationSpec = {
   ],
 };
 
-export const SemicolonSpec = {
+export const SemicolonSpec: PixelShapeSpec = {
   width: 2,
   height: 8,
   depth: STANDARD_RES + 1,

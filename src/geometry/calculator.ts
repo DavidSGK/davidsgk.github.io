@@ -1,12 +1,13 @@
 import * as THREE from "three";
 import { shuffle, balanceBatches, calculateNormal } from "../utils";
+import { PixelShapeSpec } from "./pixel-specs";
 
-interface ShapeAttribute {
+export interface ShapeAttribute {
   array: Float32Array;
   itemSize: number;
 }
 
-interface ShapeAttributes {
+export interface ShapeAttributes {
   readonly [key: string]: ShapeAttribute;
 }
 
@@ -87,14 +88,7 @@ export default class GeometryCalculator {
   }
 
   getPixelGeometryAttributes = (
-    pixelShapeSpec: {
-      coords: [number, number][];
-      resolution: number;
-      depth: number;
-      width?: number;
-      height?: number;
-      scale?: number;
-    },
+    pixelShapeSpec: PixelShapeSpec,
     pixelSize: number,
     shuffleCubes: boolean,
   ): { attributes: ShapeAttributes; numUsedVertices: number } => {

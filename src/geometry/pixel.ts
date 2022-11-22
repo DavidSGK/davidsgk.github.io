@@ -10,7 +10,7 @@ import {
   MusicNoteSpec,
   SemicolonSpec,
 } from "./pixel-specs";
-import GeometryCalculator from "./calculator.ts";
+import GeometryCalculator from "./calculator";
 
 /**
  * Allow using Three.js BufferGeometry to create 3D versions of pixellated shapes
@@ -34,7 +34,7 @@ const BUFFER_ATTRIBUTES = [
  * Extension of Object3D to more easily manage a pixel shape geometry/material
  * for things like specific animations.
  *
- * Is set up to allow transitiong to some "idle" shapes and "target" shapes.
+ * Is set up to allow transitioningg to some "idle" shapes and "target" shapes.
  * These shapes may or may not be pixel shapes.
  * Animations are handled by the vertex shader for the material.
  */
@@ -60,9 +60,22 @@ export default class PixelObject extends THREE.Object3D {
     [PixelObject.Shapes.SEMICOLON]: SemicolonSpec,
   };
 
+  private shapeSize: number;
+  private transitionSpeed: number;
+  private onFinishTransition: () => void;
+
+  private noise3DGenerator: (x: number, y: number, z: number) => number;
+  private prngSeed: number;
+  private numVertices: number;
+  private geometry: THREE.BufferGeometry;
+  private geometryCalculator: GeometryCalculator;
+  private material: THREE.RawShaderMaterial;
+  private mesh: THREE.Mesh<any, any>;
+  private inTransition: boolean;
+
   constructor(
-    initialShape,
-    size,
+    initialShape: number,
+    size: number,
     transitionSpeed = 1,
     onFinishTransition = () => {},
   ) {
@@ -92,7 +105,7 @@ export default class PixelObject extends THREE.Object3D {
     this.geometryCalculator = new GeometryCalculator(
       this.numVertices,
       this.noise3D,
-      new Alea(this.prngSeed),
+      Alea(this.prngSeed),
     );
 
     this.material = new THREE.RawShaderMaterial({
@@ -131,24 +144,22 @@ export default class PixelObject extends THREE.Object3D {
     this.inTransition = false;
   }
 
-  getCurrentShape() {
-    return this.material.uniforms.currentShape.value;
-  }
+  getCurrentShape = () => this.material.uniforms.currentShape.value;
 
-  setTargetShape(shape) {
+  setTargetShape = (shape: number) => {
     // TODO: Handle interruptions
     if (this.inTransition) {
       return;
     }
     // Set target attributes
     this.prngSeed = Math.random();
-    this.geometryCalculator.rng = new Alea(this.prngSeed);
+    this.geometryCalculator.rng = Alea(this.prngSeed);
     this.setGeometryAttributes(shape, true);
 
     // Update both current and target
     this.material.uniforms.targetShape.value = shape;
     this.inTransition = true;
-  }
+  };
 
   /**
    * Should be called whenever the object needs to be updated
@@ -185,10 +196,13 @@ export default class PixelObject extends THREE.Object3D {
       const targetAttrKey = `target${attrKey
         .charAt(0)
         .toUpperCase()}${attrKey.slice(1)}`;
-      this.geometry
-        .getAttribute(attrKey)
-        .set(this.geometry.getAttribute(targetAttrKey).array);
-      this.geometry.getAttribute(attrKey).needsUpdate = true;
+      this.geometry.setAttribute(
+        attrKey,
+        new THREE.BufferAttribute(
+          this.geometry.getAttribute(targetAttrKey).array,
+          this.geometry.getAttribute(targetAttrKey).itemSize,
+        ),
+      );
     });
 
     this.inTransition = false;
@@ -220,19 +234,16 @@ export default class PixelObject extends THREE.Object3D {
       const attrKey = isTarget
         ? `target${attr.charAt(0).toUpperCase()}${attr.slice(1)}`
         : attr;
-      if (this.geometry.hasAttribute(attrKey)) {
-        this.geometry.getAttribute(attrKey).set(geometryAttributes[attr].array);
-        this.geometry.getAttribute(attrKey).needsUpdate = true;
-      } else {
-        this.geometry.setAttribute(
-          attrKey,
-          new THREE.BufferAttribute(
-            geometryAttributes[attr].array,
-            geometryAttributes[attr].itemSize,
-          ),
-        );
-      }
+
+      this.geometry.setAttribute(
+        attrKey,
+        new THREE.BufferAttribute(
+          geometryAttributes[attr].array,
+          geometryAttributes[attr].itemSize,
+        ),
+      );
     });
+
     // Also update used vertex count to allow adjusting transitions and handling leftover vertices
     if (!isTarget) {
       this.material.uniforms.numUsedVertices.value = numUsedVertices;

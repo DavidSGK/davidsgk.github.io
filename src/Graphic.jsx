@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import PixelObject from "./geometry/pixel";
+import PixelObject from "./geometry/pixel.ts";
 import { shuffle } from "./utils.ts";
 
 const TRANSITION_INTERVAL = 8000;

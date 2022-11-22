@@ -8,14 +8,24 @@
     "ecmaVersion": 2022
   },
   "rules": {
-    "no-restricted-syntax": 0
+    "no-restricted-syntax": 0,
+    "lines-between-class-members": [
+      "error",
+      "always",
+      { "exceptAfterSingleLine": true }
+    ]
   },
   "overrides": [
     {
       "files": ["*.ts", "*.tsx"],
       "extends": ["airbnb", "airbnb-typescript", "prettier"],
       "rules": {
-        "no-restricted-syntax": 0
+        "no-restricted-syntax": 0,
+        "@typescript-eslint/lines-between-class-members": [
+          "error",
+          "always",
+          { "exceptAfterSingleLine": true }
+        ]
       },
       "parser": "@typescript-eslint/parser",
       "parserOptions": {
