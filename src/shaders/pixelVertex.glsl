@@ -27,8 +27,7 @@ attribute vec3 normal;
 attribute vec3 cubeCenterOffset;
 attribute float noise;
 attribute vec3 unitRandom;
-attribute float cubeIndex;
-attribute float triangleIndex;
+attribute float unitIndex;
 
 attribute vec3 targetPosition;
 attribute vec3 targetNormal;
@@ -97,7 +96,7 @@ void main() {
   // What's the smallest "unit" of transition? Cubes or triangles?
   bool isCurrentUnitCube = currentShape < 10;
   bool isTargetUnitCube = targetShape < 10;
-  float unitIndex = isCurrentUnitCube ? cubeIndex : triangleIndex;
+  // For triangles, the offset can be easily calculated using normal (center of triangle)
   vec3 unitOffset = isCurrentUnitCube ? cubeCenterOffset : (position - normal);
   vec3 tUnitOffset = isTargetUnitCube ? targetCubeCenterOffset : (targetPosition - targetNormal);
 

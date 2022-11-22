@@ -11,7 +11,7 @@ const swap = (a, i, j) => {
  *
  * Can specify size of contiguous "batches" to shuffle instead of all elements
  * @param {any[]} a
- * @param {int} batchSize
+ * @param {number} batchSize
  */
 export const shuffle = (a, batchSize = 1) => {
   if (a.length % batchSize !== 0) {

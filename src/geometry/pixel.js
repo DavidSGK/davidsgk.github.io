@@ -5,6 +5,7 @@ import Alea from 'alea';
 import { createNoise3D } from "simplex-noise";
 import { HeartSpec, DKSpec, SmileSpec, MusicNoteSpec, SemicolonSpec } from "./pixel-specs";
 import { shuffle } from "../utils";
+import GeometryCalculator from "./calculator";
 
 /**
  * Allow using Three.js BufferGeometry to create 3D versions of pixellated shapes
@@ -13,6 +14,8 @@ import { shuffle } from "../utils";
 
 const OTHER_SHAPE_START = 10;
 const NOISE_FREQUENCY_MULTIPLIER = 0.2;
+// In TS maybe this could be done in a cleaner way, by explicitly setting struct type for all attributes
+const BUFFER_ATTRIBUTES = ["position", "index", "normal", "cubeCenterOffset", "noise", "unitRandom", "unitIndex"];
 
 /**
  * Extension of Object3D to more easily manage a pixel shape geometry/material
@@ -48,10 +51,9 @@ class PixelObject extends THREE.Object3D {
 
     this.transitionSpeed = transitionSpeed;
     this.noise3DGenerator = createNoise3D();
-
-    if (initialShape >= Object.keys(PixelObject.Shapes).length) {
-      throw new Error("Initial shape must be a pixel shape.");
-    }
+    // Seed for any generation that requires deterministic behavior
+    // e.g. when target -> current need to look the same
+    this.prngSeed = Math.random();
 
     // Match number of vertices to max required
     // NOTE: Currently doesn't consider non-pixel shapes
@@ -59,6 +61,7 @@ class PixelObject extends THREE.Object3D {
 
     this.shapeSize = size;
     this.geometry = new THREE.BufferGeometry();
+    this.geometryCalculator = new GeometryCalculator(this.numVertices, this.noise3D, new Alea(this.prngSeed));
 
     this.material = new THREE.RawShaderMaterial({
       vertexShader: pixelVertexShader,
@@ -91,10 +94,6 @@ class PixelObject extends THREE.Object3D {
 
     this.onFinishTransition = onFinishTransition;
     this.inTransition = false;
-
-    // Seed for any generation that requires deterministic behavior
-    // e.g. when target -> current need to look the same
-    this.prngSeed = Math.random();
   }
 
   getCurrentShape() {
@@ -108,6 +107,7 @@ class PixelObject extends THREE.Object3D {
     }
     // Set target attributes
     this.prngSeed = Math.random();
+    this.geometryCalculator.rng = new Alea(this.prngSeed);
     this.setGeometryAttributes(shape, true);
 
     // Update both current and target
@@ -137,394 +137,40 @@ class PixelObject extends THREE.Object3D {
    */
   finishTransition() {
     this.material.uniforms.currentShape.value = this.material.uniforms.targetShape.value;
-    this.setGeometryAttributes(this.material.uniforms.currentShape.value);
     this.material.uniforms.transEndTime.value = this.material.uniforms.time.value;
     this.material.uniforms.transProgress.value = 0;
 
+    // Copying attributes
+    for (const attrKey of BUFFER_ATTRIBUTES) {
+      const targetAttrKey = "target" + attrKey.charAt(0).toUpperCase() + attrKey.slice(1)
+      this.geometry.getAttribute(attrKey).set(this.geometry.getAttribute(targetAttrKey).array);
+      this.geometry.getAttribute(attrKey).needsUpdate = true;
+    }
+
     this.inTransition = false;
     this.onFinishTransition();
-  }
-
-  /**
-   * Get attributes for a pixel shape formed of subdivided cubes.
-   * These attributes should be used to enable transitions in the shader.
-   *
-   * @param {*} pixelWidth width of overall shape in number of pixels
-   * @param {*} pixelHeight height of overall shape in number of pixels
-   * @param {*} cubeDepth depth of overall shape in number of CUBES, NOT PIXELS
-   * @param {*} pixelResolution how many cubes a pixel should be subdivided to
-   * @param {*} pixelCoords 2D array of 2D "pixel coordinates"
-   * @param {*} pixelSize how long each side of a pixel should be
-   * @param {*} shuffleCubes whether to shuffle the order of cubes
-   */
-  getPixelGeometryAttributes(pixelShapeSpec, pixelSize, shuffleCubes) {
-    const {
-      width: pixelWidth,
-      height: pixelHeight,
-      depth: cubeDepth,
-      resolution: pixelResolution,
-      scale: relativeScale,
-      coords: pixelCoords,
-    } = pixelShapeSpec;
-
-    const numUsedVertices = pixelShapeSpec.coords.length * pixelShapeSpec.resolution * pixelShapeSpec.resolution * pixelShapeSpec.depth * 36;
-
-    pixelSize *= relativeScale;
-    const cubeSize = pixelSize / pixelResolution;
-    // For convenience we start overall shape at "(0, 0, 0)" but offset for center
-    const offsetX = pixelSize * (pixelWidth / 2) - (cubeSize / 2);
-    const offsetY = pixelSize * (pixelHeight / 2) - (cubeSize / 2);
-    const offsetZ = pixelSize * ((cubeDepth / pixelResolution) / 2) - (cubeSize / 2);
-
-    let positions = [];
-    let cubeCenterOffsets = [];
-    let noises = [];
-    // 3D vector of random values to be shared for all vertices in the same cube in [0, 1)
-    let cubeRandoms = [];
-    let cubeIndices = [];
-
-    let cubeIndex = 0;
-    pixelCoords.forEach(([pixelX, pixelY]) => {
-      for (let localCubeX = 0; localCubeX < pixelResolution; localCubeX++) {
-        for (let localCubeY = 0; localCubeY < pixelResolution; localCubeY++) {
-          for (let cubeZ = 0; cubeZ < cubeDepth; cubeZ++) {
-            const cubeX = pixelX * pixelResolution + localCubeX;
-            const cubeY = pixelY * pixelResolution + localCubeY;
-            const cubeCenter = new THREE.Vector3(
-              cubeX * cubeSize - offsetX,
-              cubeY * cubeSize - offsetY,
-              cubeZ * cubeSize - offsetZ,
-            );
-
-            const { vertexPositions, centerOffsets, vertexNoises } = this.getCubeAttributes(cubeCenter, cubeSize);
-
-            positions.push(...vertexPositions);
-            cubeCenterOffsets.push(...centerOffsets);
-            noises.push(...vertexNoises);
-
-            const randomVec = [Math.random(), Math.random(), Math.random()];
-            for (let i = 0; i < 36; i++) {  // 36 vertices per cube
-              cubeRandoms.push(...randomVec);
-              cubeIndices.push(cubeIndex);
-            }
-
-            cubeIndex++;
-          }
-        }
-      }
-    });
-
-    // Pad leftover vertex values to front and back (keep used values centered)
-    const numRemaining = this.numVertices - numUsedVertices;
-    for (let i = 0; i < numRemaining; i++) {
-      positions.push(0, 0, 0);
-      cubeCenterOffsets.push(0, 0, 0);
-      noises.push(0);
-    }
-    for (let i = 0; i < numRemaining; i += 36) {
-      const randomVec = [Math.random(), Math.random(), Math.random()];
-      for (let j = 0; j < 36; j++) {
-        cubeRandoms.push(...randomVec);
-      }
-      cubeIndices.push(...new Array(36).fill(cubeIndex++));
-    }
-    positions = this.balanceBatches(positions, numUsedVertices * 3, 108);
-    cubeCenterOffsets = this.balanceBatches(cubeCenterOffsets, numUsedVertices * 3, 108);
-    noises = this.balanceBatches(noises, numUsedVertices, 36);
-    cubeRandoms = this.balanceBatches(cubeRandoms, numUsedVertices * 3, 108);
-    cubeIndices = this.balanceBatches(cubeIndices, numUsedVertices, 36);
-
-    // Calculate normals
-    let normals = [];
-    for (let i = 0; i < positions.length; i += 9) {
-      const va = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
-      const vb = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]);
-      const vc = new THREE.Vector3(positions[i + 6], positions[i + 7], positions[i + 8]);
-
-      const normal = this.getNormal(va, vb, vc);
-
-      for (let j = 0; j < 3; j++) {
-        normals.push(normal.x, normal.y, normal.z);
-      }
-    }
-
-    let indices = [...new Array(this.numVertices).keys()];
-
-    if (shuffleCubes) {
-      shuffle(cubeIndices, 36);
-    }
-
-    // Keys are named to be set directly as vertex shader attributes
-    const attributes = {
-      position: {
-        array: new Float32Array(positions),
-        itemSize: 3,
-      },
-      index: {
-        array: new Float32Array(indices),
-        itemSize: 1,
-      },
-      normal: {
-        array: new Float32Array(normals),
-        itemSize: 3,
-      },
-      cubeCenterOffset: {
-        array: new Float32Array(cubeCenterOffsets),
-        itemSize: 3,
-      },
-      noise: {
-        array: new Float32Array(noises),
-        itemSize: 1,
-      },
-      unitRandom: {
-        array: new Float32Array(cubeRandoms),
-        itemSize: 3,
-      },
-      cubeIndex: {
-        array: new Float32Array(cubeIndices),
-        itemSize: 1,
-      },
-    };
-
-    this.checkAttributes();
-
-    return { attributes, numUsedVertices };
-  }
-
-  /**
-   * Get atributes for cube of a specific size and center position.
-   * Note there are 2 triangles per face and thus there are shared points.
-   * Also note the order of faces is important.
-   * Returns {
-   *   vertexPositions: flat array of vertex coordinates in the cube, size 108
-   *   centerOffsets: flat array representing offsets of vertices on the cube from the center, size 108
-   *                  i.e. center vec + offset vec = vertex vec
-   *   vertexNoises: simplex 3D noise value based on vertex position for randomness in [0, 1], size 36
-   * }
-   * @param {*} center
-   * @param {*} size
-   */
-  getCubeAttributes(center, size) {
-    const offset = size / 2;
-
-    // Coords need to be specified counterclockwise for correct normals
-    const offsets = [
-      // Top
-      -offset, +offset, -offset,
-      -offset, +offset, +offset,
-      +offset, +offset, -offset,
-
-      +offset, +offset, -offset,
-      -offset, +offset, +offset,
-      +offset, +offset, +offset,
-      // Bottom
-      -offset, -offset, +offset,
-      -offset, -offset, -offset,
-      +offset, -offset, -offset,
-
-      +offset, -offset, -offset,
-      +offset, -offset, +offset,
-      -offset, -offset, +offset,
-      // Left
-      -offset, +offset, -offset,
-      -offset, -offset, -offset,
-      -offset, +offset, +offset,
-
-      -offset, +offset, +offset,
-      -offset, -offset, -offset,
-      -offset, -offset, +offset,
-      // Right
-      +offset, -offset, -offset,
-      +offset, +offset, -offset,
-      +offset, +offset, +offset,
-
-      +offset, +offset, +offset,
-      +offset, -offset, +offset,
-      +offset, -offset, -offset,
-      // Front
-      -offset, +offset, +offset,
-      -offset, -offset, +offset,
-      +offset, +offset, +offset,
-
-      +offset, +offset, +offset,
-      -offset, -offset, +offset,
-      +offset, -offset, +offset,
-      // Back
-      -offset, -offset, -offset,
-      -offset, +offset, -offset,
-      +offset, +offset, -offset,
-
-      +offset, +offset, -offset,
-      +offset, -offset, -offset,
-      -offset, -offset, -offset,
-    ]
-
-    const vertexPositions = [];
-    const vertexNoises = [];
-    for (let i = 0; i < offsets.length; i += 3) {
-      const x = center.x + offsets[i];
-      const y = center.y + offsets[i + 1];
-      const z = center.z + offsets[i + 2];
-      vertexPositions.push(x, y, z);
-      // Clamp noise to [0, 1]
-      vertexNoises.push(
-        this.noise3DGenerator(
-          x * NOISE_FREQUENCY_MULTIPLIER,
-          y * NOISE_FREQUENCY_MULTIPLIER,
-          z * NOISE_FREQUENCY_MULTIPLIER
-        ) * 0.5 + 0.5
-      );
-    }
-
-    return { vertexPositions, centerOffsets: offsets, vertexNoises };
-  }
-
-  getPlanetGeometryAttributes(detail = 3, shuffleTriangles = false) {
-    const geodesicGeometry = new THREE.IcosahedronGeometry(this.shapeSize * 3, detail);
-    // We want "flat" normals instead of the default normalized ones
-    geodesicGeometry.computeVertexNormals();
-
-    let positions = Array.from(geodesicGeometry.getAttribute("position").array);
-    // Triangle centers == normals of vertices
-    let normals = Array.from(geodesicGeometry.getAttribute("normal").array);
-
-    geodesicGeometry.dispose();
-
-    let numUsedVertices = positions.length / 3;
-    let noises = [];
-    // Random values to be shared between vertices on the same triangle
-    let triangleRandoms = [];
-    let triangleIndices = [];
-    let triangleIndex = 0;
-    for (let i = 0; i < numUsedVertices; i++) {
-      noises.push(
-        this.noise3DGenerator(
-          positions[i] * NOISE_FREQUENCY_MULTIPLIER,
-          positions[i + 1] * NOISE_FREQUENCY_MULTIPLIER,
-          positions[i + 2] * NOISE_FREQUENCY_MULTIPLIER,
-        ) * 0.5 + 0.5
-      );
-    }
-    for (let i = 0; i < numUsedVertices; i += 3) {
-      const randomVec = [Math.random(), Math.random(), Math.random()];
-      for (let j = 0; j < 3; j++) {
-        triangleRandoms.push(...randomVec);
-      }
-      triangleIndices.push(triangleIndex, triangleIndex, triangleIndex);
-      triangleIndex++;
-    }
-
-    // Add rings
-    const prng = new Alea(this.prngSeed);
-    const radii = [this.shapeSize * 5, this.shapeSize * 6, this.shapeSize * 7];
-    const maxVertexOffset = 0.2;
-    const tilt = Math.PI / 6;
-    const ringDensity = 1080;
-
-    const ringPositions = [];
-    radii.forEach((r, ri) => {
-      const thetaOffset = ri * 2 * Math.PI / ringDensity / radii.length;
-      for (let i = 0; i < ringDensity; i++) {
-        const theta = 2 * Math.PI / ringDensity * i + thetaOffset;
-        const triangleCenter = new THREE.Vector3(r * Math.cos(theta) * Math.cos(tilt), r * Math.cos(theta) * Math.sin(tilt), r * Math.sin(theta));
-        const randomVec = [Math.random(), Math.random(), Math.random()];
-
-        const vertices = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
-        vertices.forEach((v) => {
-          v.x = triangleCenter.x + maxVertexOffset * (prng() * 2 - 1);
-          v.y = triangleCenter.y + maxVertexOffset * (prng() * 2 - 1);
-          v.z = triangleCenter.z + maxVertexOffset * (prng() * 2 - 1);
-          ringPositions.push(v.x, v.y, v.z);
-
-          noises.push(0);
-          triangleRandoms.push(...randomVec);
-          triangleIndices.push(triangleIndex);
-        });
-        const normal = this.getNormal(vertices[0], vertices[1], vertices[2]);
-        vertices.forEach(() => {
-          normals.push(normal.x, normal.y, normal.z);
-        });
-        triangleIndex++;
-      }
-    });
-    positions.push(...ringPositions);
-
-    numUsedVertices = positions.length / 3;
-
-    // Pad attributes for remaining vertices
-    const numRemaining = this.numVertices - numUsedVertices;
-    for (let i = 0; i < numRemaining; i++) {
-      positions.push(0, 0, 0);
-      normals.push(0, 0, 0);
-      noises.push(0);
-    }
-    for (let i = 0; i < numRemaining; i += 3) {
-      const randomVec = [Math.random(), Math.random(), Math.random()];
-      for (let j = 0; j < 3; j++) {
-        triangleRandoms.push(...randomVec);
-      }
-      triangleIndices.push(...new Array(3).fill(triangleIndex++));
-    }
-
-    positions = this.balanceBatches(positions, numUsedVertices * 3, 9);
-    normals = this.balanceBatches(normals, numUsedVertices * 3, 9);
-    noises = this.balanceBatches(noises, numUsedVertices, 3);
-    triangleRandoms = this.balanceBatches(triangleRandoms, numUsedVertices * 3, 9);
-    triangleIndices = this.balanceBatches(triangleIndices, numUsedVertices, 3);
-
-    const indices = [...new Array(this.numVertices).keys()];
-
-    if (shuffleTriangles) {
-      shuffle(triangleIndices, 3);
-    }
-
-    const attributes = {
-      position: {
-        array: new Float32Array(positions),
-        itemSize: 3,
-      },
-      index: {
-        array: new Float32Array(indices),
-        itemSize: 1,
-      },
-      normal: {
-        array: new Float32Array(normals),
-        itemSize: 3,
-      },
-      noise: {
-        array: new Float32Array(noises),
-        itemSize: 1,
-      },
-      unitRandom: {
-        array: new Float32Array(triangleRandoms),
-        itemSize: 3,
-      },
-      triangleIndex: {
-        array: new Float32Array(triangleIndices),
-        itemSize: 1,
-      },
-    };
-
-    this.checkAttributes(attributes);
-
-    return { attributes, numUsedVertices };
   }
 
   setGeometryAttributes(shape, isTarget = false) {
     let geometryAttributes;
     let numUsedVertices;
     if (shape < OTHER_SHAPE_START) {
-      ({ attributes: geometryAttributes, numUsedVertices } = this.getPixelGeometryAttributes(PixelObject.ShapeSpecs[shape], this.shapeSize, true));
+      // ({ attributes: geometryAttributes, numUsedVertices } = this.getPixelGeometryAttributes(PixelObject.ShapeSpecs[shape], this.shapeSize, true));
+      ({ attributes: geometryAttributes, numUsedVertices } = this.geometryCalculator.getPixelGeometryAttributes(PixelObject.ShapeSpecs[shape], this.shapeSize, true));
     } else if (shape == PixelObject.OtherShapes.PLANET) {
-      ({ attributes: geometryAttributes, numUsedVertices } = this.getPlanetGeometryAttributes(6, true));
+      ({ attributes: geometryAttributes, numUsedVertices } = this.geometryCalculator.getPlanetGeometryAttributes(this.shapeSize * 3, 6, true));
     } else {
       throw new Error("Invalid shape specified.");
     }
 
     for (const attr in geometryAttributes) {
       const attrKey = isTarget ? "target" + attr.charAt(0).toUpperCase() + attr.slice(1) : attr;
-      this.geometry.setAttribute(attrKey, new THREE.BufferAttribute(geometryAttributes[attr].array, geometryAttributes[attr].itemSize));
-      this.geometry.getAttribute(attrKey).needsUpdate = true;
+      if (this.geometry.hasAttribute(attrKey)) {
+        this.geometry.getAttribute(attrKey).set(geometryAttributes[attr].array);
+        this.geometry.getAttribute(attrKey).needsUpdate = true;
+      } else {
+        this.geometry.setAttribute(attrKey, new THREE.BufferAttribute(geometryAttributes[attr].array, geometryAttributes[attr].itemSize));
+      }
     }
     // Also update used vertex count to allow adjusting transitions and handling leftover vertices
     if (!isTarget) {
@@ -534,46 +180,12 @@ class PixelObject extends THREE.Object3D {
     }
   }
 
-  checkAttributes(attributes) {
-    // Sanity check for correct lengths
-    for (const attr in attributes) {
-      if (attributes[attr].array.length / attributes[attr].itemSize !== this.numVertices) {
-        throw new Error(`Internal error calculating geometry attribute ${attr}: expected size ${this.numVertices} but got ${attributes[attr].array.length / attributes[attr].itemSize}`);
-      }
-    }
-  }
-
-  /**
-   * Calculate the normal of a triangle formed by va, vb, vc
-   * assuming they are provided in counterclockwise order (for an outwards normal)
-   */
-  getNormal(va, vb, vc) {
-    const vcb = new THREE.Vector3().subVectors(vc, vb);
-    const vab = new THREE.Vector3().subVectors(va, vb);
-    vcb.cross(vab);
-    vcb.normalize();
-
-    return vcb;
-  }
-
-  /**
-   * Return a "balanced" array by shifting batches of elements from the back to the front
-   */
-  balanceBatches(a, start, batchSize) {
-    let mid = Math.floor((a.length - start) / 2);
-    mid -= mid % batchSize;
-    const balanced = [];
-    a.slice(start + mid).forEach((x) => { balanced.push(x) });
-    a.slice(0, start).forEach((x) => { balanced.push(x) });
-    a.slice(start, start + mid).forEach((x) => { balanced.push(x) });
-
-    return balanced;
-  }
-
   dispose() {
     this.geometry.dispose();
     this.material.dispose();
   }
+
+  noise3D = (x, y, z) => this.noise3DGenerator(x * NOISE_FREQUENCY_MULTIPLIER, y * NOISE_FREQUENCY_MULTIPLIER, z * NOISE_FREQUENCY_MULTIPLIER);
 };
 
 export { PixelObject };

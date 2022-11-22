@@ -5,7 +5,7 @@ const App = () => {
   return (
     <React.StrictMode>
       <Graphic />
-      <section className="main">
+      {/* <section className="main">
         <div className="landing">
           <h1 className="name pixel">David Kang</h1>
           <h3 className="desc">Software Engineer | University of Waterloo '21</h3>
@@ -17,7 +17,7 @@ const App = () => {
             <a className="fas fa-envelope" href="mailto:david.kang@uwaterloo.ca"></a>
           </div>
         </div>
-      </section>
+      </section> */}
     </React.StrictMode>
   );
 }
