@@ -16,7 +16,22 @@ export default class AttributeArrayManager {
   private curEnds: Map<string, number>;
   private lengths: Map<string, number>;
 
-  constructor(numVertices: number, attrNamesToItemSizes: Map<string, number>) {
+  /**
+   *
+   * @param buffer If specified, is checked and used as the underlying buffer for the manager
+   * @param numVertices Number of vertices total to allocate memory for
+   * @param attrNamesToItemSizes Map of attributes to handle and their respective item sizes
+   * (e.g. position has an item size of 3 for its x, y, z values)
+   */
+  constructor({
+    buffer,
+    numVertices,
+    attrNamesToItemSizes,
+  }: {
+    buffer?: ArrayBuffer;
+    numVertices: number;
+    attrNamesToItemSizes: Map<string, number>;
+  }) {
     this.numVertices = numVertices;
 
     this.lengths = new Map(
@@ -34,12 +49,20 @@ export default class AttributeArrayManager {
         { starts: [], last: 0 },
       ).starts,
     );
-    this.sharedBuffer = new ArrayBuffer(
-      [...this.lengths.values()].reduce(
-        (prev, length) => prev + length * Float32Array.BYTES_PER_ELEMENT,
-        0,
-      ),
+    const bufferSize = [...this.lengths.values()].reduce(
+      (prev, length) => prev + length * Float32Array.BYTES_PER_ELEMENT,
+      0,
     );
+    if (buffer) {
+      if (buffer.byteLength !== bufferSize) {
+        throw new Error(
+          `Mismatched buffer size: expected ${bufferSize}, got ${buffer.byteLength}`,
+        );
+      }
+      this.sharedBuffer = buffer;
+    } else {
+      this.sharedBuffer = new ArrayBuffer(bufferSize);
+    }
     this.arrays = new Map(
       [...this.lengths.entries()].map(([attrName, length]) => [
         attrName,
@@ -128,4 +151,9 @@ export default class AttributeArrayManager {
       this.reset(attribute);
     });
   };
+
+  /**
+   * Get the underlying ArrayBuffer of this manager.
+   */
+  getBuffer = () => this.sharedBuffer;
 }

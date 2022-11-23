@@ -7,8 +7,10 @@ import {
   SmileSpec,
   MusicNoteSpec,
   SemicolonSpec,
+  PixelShapeSpec,
 } from "./pixel-specs";
-import GeometryCalculator from "./calculator";
+import GeometryCalculator, { ShapeAttributes } from "./calculator";
+import AttributeArrayManager from "./attribute-array-manager";
 
 /**
  * Allow using Three.js BufferGeometry to create 3D versions of pixellated shapes
@@ -32,12 +34,12 @@ export default class PixelObject extends THREE.Object3D {
     HEART: 2,
     MUSIC_NOTE: 3,
     SEMICOLON: 4,
-  };
+  } as const;
 
   // Non-pixel shapes, with no explicit shape specs
   static OtherShapes = {
     PLANET: OTHER_SHAPE_START,
-  };
+  } as const;
 
   static ShapeSpecs = {
     [PixelObject.Shapes.DK]: DKSpec,
@@ -45,7 +47,14 @@ export default class PixelObject extends THREE.Object3D {
     [PixelObject.Shapes.HEART]: HeartSpec,
     [PixelObject.Shapes.MUSIC_NOTE]: MusicNoteSpec,
     [PixelObject.Shapes.SEMICOLON]: SemicolonSpec,
-  };
+  } as const;
+
+  static CalculatorWorkerCodes = {
+    ERROR: 0,
+    INITIAL_ATTRIBUTES: 1,
+    UPDATE_CURRENT: 2,
+    UPDATE_TARGET: 3,
+  } as const;
 
   private shapeSize: number;
   private transitionSpeed: number;
@@ -55,7 +64,8 @@ export default class PixelObject extends THREE.Object3D {
   private prngSeed: number;
   private numVertices: number;
   private geometry: THREE.BufferGeometry;
-  private geometryCalculator: GeometryCalculator;
+  private geometryCalculatorWorker: Worker;
+  private attributeArrayManager: AttributeArrayManager;
   private material: THREE.RawShaderMaterial;
   private mesh: THREE.Mesh<any, any>;
   private inTransition: boolean;
@@ -87,10 +97,7 @@ export default class PixelObject extends THREE.Object3D {
     this.prngSeed = Math.random();
     this.shapeSize = size;
     this.geometry = new THREE.BufferGeometry();
-    this.geometryCalculator = new GeometryCalculator(
-      this.numVertices,
-      this.prngSeed,
-    );
+    this.initCalculatorWorker();
 
     this.material = new THREE.RawShaderMaterial({
       vertexShader: pixelVertexShader,
@@ -118,8 +125,16 @@ export default class PixelObject extends THREE.Object3D {
       },
     });
 
-    this.pushGeometryAttributes(initialShape);
-    this.pushGeometryAttributes(initialShape, true);
+    this.callCalculatorWorker({
+      code: PixelObject.CalculatorWorkerCodes.INITIAL_ATTRIBUTES,
+      shape: initialShape,
+      shuffleUnits: true,
+      pixelShapeArgs: {
+        pixelShapeSpec: PixelObject.ShapeSpecs[initialShape],
+        pixelSize: this.shapeSize,
+      },
+    });
+    // this.pushGeometryAttributes(initialShape);
 
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.add(this.mesh);
@@ -131,26 +146,43 @@ export default class PixelObject extends THREE.Object3D {
 
   getCurrentShape = () => this.material.uniforms.currentShape.value;
 
-  setTargetShape = (shape: number) => {
+  setTargetShape = (shape: number): void => {
     // TODO: Handle interruptions
     if (this.inTransition) {
       return;
     }
     // Set target attributes
     this.prngSeed = Math.random();
-    this.geometryCalculator.setSeed(this.prngSeed);
-    this.pushGeometryAttributes(shape, true);
 
-    // Update both current and target
-    this.material.uniforms.targetShape.value = shape;
-    this.inTransition = true;
+    if (shape < OTHER_SHAPE_START) {
+      this.callCalculatorWorker({
+        code: PixelObject.CalculatorWorkerCodes.UPDATE_TARGET,
+        shape,
+        shuffleUnits: true,
+        pixelShapeArgs: {
+          pixelShapeSpec: PixelObject.ShapeSpecs[shape],
+          pixelSize: this.shapeSize,
+        },
+      });
+    } else if (shape === PixelObject.OtherShapes.PLANET) {
+      this.callCalculatorWorker({
+        code: PixelObject.CalculatorWorkerCodes.UPDATE_TARGET,
+        shape,
+        shuffleUnits: true,
+        planetShapeArgs: {
+          radius: this.shapeSize * 3,
+          detail: 6,
+          numRings: 3,
+        },
+      });
+    }
   };
 
   /**
    * Should be called whenever the object needs to be updated
    * e.g. an animation tick
    */
-  update = () => {
+  update = (): void => {
     const delta = (1 / 240) * this.transitionSpeed;
     this.material.uniforms.time.value += delta;
 
@@ -166,15 +198,98 @@ export default class PixelObject extends THREE.Object3D {
     }
   };
 
-  dispose = () => {
+  dispose = (): void => {
+    this.geometryCalculatorWorker.terminate();
     this.geometry.dispose();
     this.material.dispose();
+  };
+
+  private initCalculatorWorker = (): void => {
+    this.geometryCalculatorWorker = new Worker(
+      new URL("calculator-worker.ts", import.meta.url),
+      { type: "module" },
+    );
+
+    // Allocate memory that will be moved back and forth with worker
+    // To prevent spiky memory allocation/GC and copying
+    this.attributeArrayManager = new AttributeArrayManager({
+      numVertices: this.numVertices,
+      attrNamesToItemSizes: GeometryCalculator.ATTRIBUTES_TO_ITEM_SIZES,
+    });
+
+    this.geometryCalculatorWorker.onmessage = (
+      e: MessageEvent<{
+        code: number;
+        shape: number;
+        attributes: ShapeAttributes;
+        numUsedVertices: number;
+        buffer: ArrayBuffer;
+      }>,
+    ) => {
+      const { code, shape, attributes, numUsedVertices, buffer } = e.data;
+
+      switch (code) {
+        // Set current attributes and trigger initialize complete callback
+        case PixelObject.CalculatorWorkerCodes.INITIAL_ATTRIBUTES:
+          this.pushGeometryAttributes(
+            shape,
+            attributes,
+            numUsedVertices,
+            false,
+          );
+          this.onInitComplete();
+          break;
+        // Set target attributes and begin transition
+        case PixelObject.CalculatorWorkerCodes.UPDATE_TARGET:
+          this.pushGeometryAttributes(shape, attributes, numUsedVertices, true);
+          this.material.uniforms.targetShape.value = shape;
+          this.inTransition = true;
+          break;
+        case PixelObject.CalculatorWorkerCodes.ERROR:
+          break;
+        default:
+          break;
+      }
+
+      // Transfer buffer back
+      this.attributeArrayManager = new AttributeArrayManager({
+        buffer,
+        numVertices: this.numVertices,
+        attrNamesToItemSizes: GeometryCalculator.ATTRIBUTES_TO_ITEM_SIZES,
+      });
+    };
+  };
+
+  private callCalculatorWorker = (calcArgs: {
+    code: number;
+    shape: number;
+    shuffleUnits: boolean;
+    pixelShapeArgs?: {
+      pixelShapeSpec: PixelShapeSpec;
+      pixelSize: number;
+    };
+    planetShapeArgs?: {
+      radius: number;
+      detail: number;
+      numRings: number;
+    };
+  }): void => {
+    this.geometryCalculatorWorker.postMessage(
+      {
+        ...calcArgs,
+        numVertices: this.numVertices,
+        rngSeed: this.prngSeed,
+        buffer: this.attributeArrayManager.getBuffer(),
+      },
+      // Transfer underlying buffer to save on memory copy/GC
+      [this.attributeArrayManager.getBuffer()],
+    );
   };
 
   /**
    * Finish transition between shapes and update "current" attributes from previous target
    */
-  private finishTransition = () => {
+  private finishTransition = (): void => {
     this.material.uniforms.currentShape.value =
       this.material.uniforms.targetShape.value;
     this.material.uniforms.transEndTime.value =
@@ -202,46 +317,29 @@ export default class PixelObject extends THREE.Object3D {
   /**
    * Push given attributes to the material appropriately for use in the shader.
    */
-  private pushGeometryAttributes = (shape: number, isTarget = false) => {
-    let geometryAttributes;
-    let numUsedVertices;
-    if (shape < OTHER_SHAPE_START) {
-      ({ attributes: geometryAttributes, numUsedVertices } =
-        this.geometryCalculator.getPixelGeometryAttributes(
-          PixelObject.ShapeSpecs[shape],
-          this.shapeSize,
-          true,
-        ));
-    } else if (shape === PixelObject.OtherShapes.PLANET) {
-      ({ attributes: geometryAttributes, numUsedVertices } =
-        this.geometryCalculator.getPlanetGeometryAttributes(
-          this.shapeSize * 3,
-          6,
-          3,
-          true,
-        ));
-    } else {
-      throw new Error("Invalid shape specified.");
-    }
-
-    Object.keys(geometryAttributes).forEach((attr) => {
+  private pushGeometryAttributes = (
+    shape: number,
+    attributes: ShapeAttributes,
+    numUsedVertices: number,
+    isTarget = false,
+  ): void => {
+    Object.entries(attributes).forEach(([name, data]) => {
       const attrKey = isTarget
-        ? `target${attr.charAt(0).toUpperCase()}${attr.slice(1)}`
-        : attr;
+        ? `target${name.charAt(0).toUpperCase()}${name.slice(1)}`
+        : name;
 
       this.geometry.setAttribute(
         attrKey,
-        new THREE.BufferAttribute(
-          geometryAttributes[attr].array,
-          geometryAttributes[attr].itemSize,
-        ),
+        new THREE.BufferAttribute(data.array, data.itemSize),
       );
     });
 
     // Also update used vertex count to allow adjusting transitions and handling leftover vertices
     if (!isTarget) {
+      this.material.uniforms.currentShape.value = shape;
       this.material.uniforms.numUsedVertices.value = numUsedVertices;
     } else {
+      this.material.uniforms.targetShape.value = shape;
       this.material.uniforms.numUsedVertices.value = Math.max(
         this.material.uniforms.numUsedVertices.value,
         numUsedVertices,

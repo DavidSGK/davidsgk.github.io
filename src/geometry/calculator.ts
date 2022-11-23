@@ -135,10 +135,10 @@ export default class GeometryCalculator {
     if (arrayManager !== undefined) {
       this.arrayManager = arrayManager;
     } else {
-      this.arrayManager = new AttributeArrayManager(
-        this.numVertices,
-        GeometryCalculator.ATTRIBUTES_TO_ITEM_SIZES,
-      );
+      this.arrayManager = new AttributeArrayManager({
+        numVertices: this.numVertices,
+        attrNamesToItemSizes: GeometryCalculator.ATTRIBUTES_TO_ITEM_SIZES,
+      });
     }
   }
 
