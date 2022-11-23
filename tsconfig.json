@@ -2,7 +2,8 @@
   "compilerOptions": {
     "allowJs": true,
     "isolatedModules": true,
-    "lib": ["es2020", "DOM"],
+    "lib": ["es2020", "DOM", "WebWorker"],
+    "module": "es2020",
     "moduleResolution": "node",
     "outDir": "dist",
     "target": "ES6"

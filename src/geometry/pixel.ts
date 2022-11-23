@@ -1,6 +1,4 @@
 import * as THREE from "three";
-import Alea from "alea";
-import { createNoise3D } from "simplex-noise";
 import pixelVertexShader from "../shaders/pixelVertex.glsl";
 import pixelFragmentShader from "../shaders/pixelFragment.glsl";
 import {
@@ -18,17 +16,6 @@ import GeometryCalculator from "./calculator";
  */
 
 const OTHER_SHAPE_START = 10;
-const NOISE_FREQUENCY_MULTIPLIER = 0.2;
-// In TS maybe this could be done in a cleaner way, by explicitly setting struct type for all attributes
-const BUFFER_ATTRIBUTES = [
-  "position",
-  "index",
-  "normal",
-  "cubeCenterOffset",
-  "noise",
-  "unitRandom",
-  "unitIndex",
-];
 
 /**
  * Extension of Object3D to more easily manage a pixel shape geometry/material
@@ -62,9 +49,9 @@ export default class PixelObject extends THREE.Object3D {
 
   private shapeSize: number;
   private transitionSpeed: number;
-  private onFinishTransition: () => void;
+  private onInitComplete: () => void;
+  private onTransitionComplete: () => void;
 
-  private noise3DGenerator: (x: number, y: number, z: number) => number;
   private prngSeed: number;
   private numVertices: number;
   private geometry: THREE.BufferGeometry;
@@ -77,15 +64,12 @@ export default class PixelObject extends THREE.Object3D {
     initialShape: number,
     size: number,
     transitionSpeed = 1,
-    onFinishTransition = () => {},
+    onInitComplete = () => {},
+    onTransitionComplete = () => {},
   ) {
     super();
 
     this.transitionSpeed = transitionSpeed;
-    this.noise3DGenerator = createNoise3D();
-    // Seed for any generation that requires deterministic behavior
-    // e.g. when target -> current need to look the same
-    this.prngSeed = Math.random();
 
     // Match number of vertices to max required
     // NOTE: Currently doesn't consider non-pixel shapes
@@ -100,12 +84,12 @@ export default class PixelObject extends THREE.Object3D {
       ),
     );
 
+    this.prngSeed = Math.random();
     this.shapeSize = size;
     this.geometry = new THREE.BufferGeometry();
     this.geometryCalculator = new GeometryCalculator(
       this.numVertices,
-      this.noise3D,
-      Alea(this.prngSeed),
+      this.prngSeed,
     );
 
     this.material = new THREE.RawShaderMaterial({
@@ -134,13 +118,14 @@ export default class PixelObject extends THREE.Object3D {
       },
     });
 
-    this.setGeometryAttributes(initialShape);
-    this.setGeometryAttributes(initialShape, true);
+    this.pushGeometryAttributes(initialShape);
+    this.pushGeometryAttributes(initialShape, true);
 
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.add(this.mesh);
 
-    this.onFinishTransition = onFinishTransition;
+    this.onInitComplete = onInitComplete;
+    this.onTransitionComplete = onTransitionComplete;
     this.inTransition = false;
   }
 
@@ -153,8 +138,8 @@ export default class PixelObject extends THREE.Object3D {
     }
     // Set target attributes
     this.prngSeed = Math.random();
-    this.geometryCalculator.rng = Alea(this.prngSeed);
-    this.setGeometryAttributes(shape, true);
+    this.geometryCalculator.setSeed(this.prngSeed);
+    this.pushGeometryAttributes(shape, true);
 
     // Update both current and target
     this.material.uniforms.targetShape.value = shape;
@@ -165,7 +150,7 @@ export default class PixelObject extends THREE.Object3D {
    * Should be called whenever the object needs to be updated
    * e.g. an animation tick
    */
-  update() {
+  update = () => {
     const delta = (1 / 240) * this.transitionSpeed;
     this.material.uniforms.time.value += delta;
 
@@ -179,12 +164,17 @@ export default class PixelObject extends THREE.Object3D {
       // Want this to only fire once
       this.finishTransition();
     }
-  }
+  };
+
+  dispose = () => {
+    this.geometry.dispose();
+    this.material.dispose();
+  };
 
   /**
    * Finish transition between shapes and update "current" attributes from previous target
    */
-  finishTransition() {
+  private finishTransition = () => {
     this.material.uniforms.currentShape.value =
       this.material.uniforms.targetShape.value;
     this.material.uniforms.transEndTime.value =
@@ -192,7 +182,7 @@ export default class PixelObject extends THREE.Object3D {
     this.material.uniforms.transProgress.value = 0;
 
     // Copying attributes
-    BUFFER_ATTRIBUTES.forEach((attrKey) => {
+    GeometryCalculator.ATTRIBUTES.forEach((attrKey) => {
       const targetAttrKey = `target${attrKey
         .charAt(0)
         .toUpperCase()}${attrKey.slice(1)}`;
@@ -206,10 +196,13 @@ export default class PixelObject extends THREE.Object3D {
     });
 
     this.inTransition = false;
-    this.onFinishTransition();
-  }
+    this.onTransitionComplete();
+  };
 
-  setGeometryAttributes(shape, isTarget = false) {
+  /**
+   * Push given attributes to the material appropriately for use in the shader.
+   */
+  private pushGeometryAttributes = (shape: number, isTarget = false) => {
     let geometryAttributes;
     let numUsedVertices;
     if (shape < OTHER_SHAPE_START) {
@@ -224,6 +217,7 @@ export default class PixelObject extends THREE.Object3D {
         this.geometryCalculator.getPlanetGeometryAttributes(
           this.shapeSize * 3,
           6,
+          3,
           true,
         ));
     } else {
@@ -253,17 +247,5 @@ export default class PixelObject extends THREE.Object3D {
         numUsedVertices,
       );
     }
-  }
-
-  dispose() {
-    this.geometry.dispose();
-    this.material.dispose();
-  }
-
-  noise3D = (x, y, z) =>
-    this.noise3DGenerator(
-      x * NOISE_FREQUENCY_MULTIPLIER,
-      y * NOISE_FREQUENCY_MULTIPLIER,
-      z * NOISE_FREQUENCY_MULTIPLIER,
-    );
+  };
 }

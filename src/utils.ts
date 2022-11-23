@@ -1,7 +1,7 @@
 /* eslint-disable no-param-reassign */
 import { MathUtils, Vector3 } from "three";
 
-const swap = (a: any[], i: number, j: number) => {
+const swap = (a: any[] | ArrayBufferView, i: number, j: number) => {
   const temp = a[i];
   a[i] = a[j];
   a[j] = temp;
@@ -11,10 +11,8 @@ const swap = (a: any[], i: number, j: number) => {
  * Shuffle using Fisher-Yates algorithm https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
  *
  * Can specify size of contiguous "batches" to shuffle instead of all elements
- * @param {any[]} a
- * @param {number} batchSize
  */
-export const shuffle = (a: any[], batchSize = 1): typeof a => {
+export const shuffle = (a: any[] | TypedArray, batchSize = 1): typeof a => {
   if (a.length % batchSize !== 0) {
     throw new Error("Array length must be divisible by batch size.");
   }
