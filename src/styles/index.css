@@ -1,10 +1,11 @@
-* {
-  box-sizing: border-box;
+:root {
+  --text-primary: #212424;
 }
 
-@font-face {
-  font-family: "Pixel7";
-  src: url("/assets/Pixel7.ttf");
+/* General */
+
+* {
+  box-sizing: border-box;
 }
 
 html,
@@ -13,9 +14,11 @@ body {
   height: 100%;
   margin: 0;
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   font-size: 16px;
+
+  color: var(--text-primary);
 }
 
 h1,
@@ -25,15 +28,35 @@ h3 {
 }
 
 h1 {
-  font-size: 6rem;
+  font-size: 2.5rem;
+  font-weight: 800;
 }
 
 h2 {
-  font-size: 2rem;
+  font-size: 1.6rem;
 }
 
 h3 {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
+}
+
+a {
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+@media screen and (min-width: 768px) {
+  h1 {
+    font-size: 4rem;
+  }
+
+  h2 {
+    font-size: 2rem;
+  }
+
+  h3 {
+    font-size: 1.6rem;
+  }
 }
 
 #root {
@@ -42,6 +65,8 @@ h3 {
   width: 100%;
   height: 100%;
 }
+
+/* Main visual */
 
 #visual {
   position: absolute;
@@ -60,79 +85,68 @@ h3 {
   height: 100%;
 }
 
-.main {
-  position: relative;
+/* Header */
 
-  width: 100%;
-  height: 100%;
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
 
-  letter-spacing: 0.2rem;
-  text-transform: uppercase;
+  display: flex;
+
+  margin: 3rem 2rem 0;
 }
 
-.landing {
-  position: absolute;
-  top: 50%;
-  left: 0;
+header .titles * {
+  margin-bottom: 1rem;
+}
+
+@media screen and (min-width: 768px) {
+  header {
+    margin: 4rem 3rem 0;
+  }
+}
+
+/* Nav */
+
+nav {
+  position: fixed;
+  top: 0;
+  right: 0;
 
   display: flex;
   flex-direction: column;
-  align-items: center;
 
-  padding: 64px 0 32px 0;
+  padding: 2rem;
 
-  width: 100%;
-
-  text-align: center;
-
-  transform: translateY(-50%);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  height: 100%;
 }
 
-.landing a {
-  text-decoration: none;
-  color: #000000;
-}
-
-.landing .name {
-  margin-bottom: 1rem;
-
-  letter-spacing: 1rem;
-}
-
-.landing .desc {
-  font-size: 1.5rem;
-  line-height: 2rem;
-}
-
-.landing .looking {
-  font-size: 1rem;
-  line-height: 1.2rem;
-}
-
-.landing .links {
+nav .links {
   display: flex;
+  flex-direction: column;
+
+  margin-top: auto;
+
+  font-size: 1.6rem;
 }
 
-.landing .links a {
-  margin: 8px 16px;
+nav .links a {
+  display: flex;
+  justify-content: center;
 
-  font-size: 2rem;
+  margin: 1rem;
 
   transition: color 0.25s ease;
 }
 
-.landing .links a:hover {
+nav .links :is(a:hover, a:focus) {
   color: #888888;
 }
 
-.landing.loading {
-  opacity: 0;
-
-  transform: translateY(-40%);
-}
-
-.pixel {
-  font-family: "Pixel7";
-  filter: contrast(1);
+@media screen and (min-width: 768px) {
+  nav .links {
+    font-size: 2rem;
+  }
 }
