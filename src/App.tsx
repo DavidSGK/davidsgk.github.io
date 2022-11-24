@@ -1,4 +1,4 @@
-import React from "react";
+import * as React from "react";
 import Graphic from "./Graphic";
 
 function App() {
@@ -32,7 +32,7 @@ function App() {
             >
               <i className="fab fa-linkedin-in" />
             </a>
-            <a href="mailto:david.kang@uwaterloo.ca">
+            <a href="mailto:davidsgkang@gmail.com">
               <i className="fas fa-envelope" />
             </a>
           </div>

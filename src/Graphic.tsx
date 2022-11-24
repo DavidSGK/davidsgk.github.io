@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import PixelObject from "./geometry/pixel.ts";
-import { shuffle } from "./utils.ts";
+import PixelObject from "./geometry/pixel";
+import { shuffle } from "./utils";
 
 const TRANSITION_INTERVAL = 8000;
 const CAMERA_DISTANCE = 25;
@@ -11,29 +11,28 @@ const BOB_FREQUENCY = 2;
 const MOBILE_SCALE = 0.7;
 
 /**
- * Component managing background visual graphic
- *
- * TODO: Refactor to be more modularized - right now it's a monolithic mess because
- * I'm still figuring things out
+ * Component managing main 3D visual object
  */
 function Graphic() {
   // Setup variables required for rendering
   const graphicsRef = useRef(null);
   const transitionIntervalIdRef = useRef(null);
+  const shapesRef = useRef({
+    shapes: Array.from(
+      shuffle([
+        PixelObject.Shapes.SMILE,
+        PixelObject.Shapes.SEMICOLON,
+        PixelObject.Shapes.MUSIC_NOTE,
+        PixelObject.OtherShapes.PLANET,
+      ]),
+    ).concat(PixelObject.Shapes.DK),
+    shapeIndex: 0,
+  });
 
   // Ref for mounting point of scene
   const canvasRef = useRef(null);
-  const [paused, setPaused] = useState(false);
 
-  const shapesRef = useRef({
-    shapes: shuffle([
-      PixelObject.Shapes.SMILE,
-      PixelObject.Shapes.SEMICOLON,
-      PixelObject.Shapes.MUSIC_NOTE,
-      PixelObject.OtherShapes.PLANET,
-    ]).concat(PixelObject.Shapes.DK),
-    shapeIndex: 0,
-  });
+  const [paused, setPaused] = useState(false);
 
   const scaleObjectToDisplay = () => {
     const { mainObject } = graphicsRef.current;

@@ -3,7 +3,7 @@
     "browser": true,
     "es2022": true
   },
-  "extends": ["airbnb", "prettier"],
+  "extends": ["airbnb", "plugin:react/jsx-runtime", "prettier"],
   "parserOptions": {
     "ecmaVersion": 2022
   },
@@ -18,7 +18,12 @@
   "overrides": [
     {
       "files": ["*.ts", "*.tsx"],
-      "extends": ["airbnb", "airbnb-typescript", "prettier"],
+      "extends": [
+        "airbnb",
+        "airbnb-typescript",
+        "plugin:react/jsx-runtime",
+        "prettier"
+      ],
       "rules": {
         "no-restricted-syntax": 0,
         "@typescript-eslint/lines-between-class-members": [
