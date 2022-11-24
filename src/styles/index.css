@@ -1,5 +1,6 @@
 :root {
   --text-primary: #212424;
+  --container-width: 1440px;
 }
 
 /* General */
@@ -59,6 +60,18 @@ a {
   }
 }
 
+svg {
+  fill: var(--text-primary);
+}
+
+.container {
+  margin-left: auto;
+  margin-right: auto;
+
+  width: 100%;
+  max-width: var(--container-width);
+}
+
 #root {
   position: relative;
 
@@ -95,7 +108,16 @@ header {
 
   display: flex;
 
-  margin: 3rem 2rem 0;
+  margin-top: 3rem;
+  padding: 0 2rem;
+}
+
+header .container {
+  display: flex;
+}
+
+header .container .titles {
+  width: 100%;
 }
 
 header .titles * {
@@ -104,7 +126,8 @@ header .titles * {
 
 @media screen and (min-width: 768px) {
   header {
-    margin: 4rem 3rem 0;
+    margin-top: 4rem;
+    padding: 0 2rem;
   }
 }
 
@@ -138,6 +161,9 @@ nav .links a {
 
   margin: 1rem;
 
+  width: 2rem;
+  height: 2rem;
+
   transition: color 0.25s ease;
 }
 
@@ -148,5 +174,12 @@ nav .links :is(a:hover, a:focus) {
 @media screen and (min-width: 768px) {
   nav .links {
     font-size: 2rem;
+  }
+}
+
+/* Can't use variable in media query, but should match --container-width */
+@media screen and (min-width: 1440px) {
+  nav {
+    right: calc((100% - var(--container-width)) / 2);
   }
 }
