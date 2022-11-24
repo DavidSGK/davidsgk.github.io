@@ -8,6 +8,7 @@ const CAMERA_DISTANCE = 25;
 const CAMERA_MOVE_STRENGTH = 8;
 const BOB_DISTANCE = 0.075;
 const BOB_FREQUENCY = 2;
+const MOBILE_SCALE = 0.7;
 
 /**
  * Component managing background visual graphic
@@ -33,6 +34,16 @@ function Graphic() {
     ]).concat(PixelObject.Shapes.DK),
     shapeIndex: 0,
   });
+
+  const scaleObjectToDisplay = () => {
+    const { mainObject } = graphicsRef.current;
+
+    if (window.innerWidth < 768) {
+      mainObject.scale.set(MOBILE_SCALE, MOBILE_SCALE, MOBILE_SCALE);
+    } else {
+      mainObject.scale.set(1, 1, 1);
+    }
+  };
 
   // Main animation function
   const animate = () => {
@@ -91,12 +102,6 @@ function Graphic() {
     // Main pixel shape visual
     const mainObject = new PixelObject(PixelObject.Shapes.DK, 1, 1);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff);
-    directionalLight.position.set(1, 1, 1);
-
-    scene.add(mainObject);
-    scene.add(directionalLight);
-
     graphicsRef.current = {
       clock,
       scene,
@@ -105,29 +110,15 @@ function Graphic() {
       mainObject,
     };
 
+    scaleObjectToDisplay();
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff);
+    directionalLight.position.set(1, 1, 1);
+
+    scene.add(mainObject);
+    scene.add(directionalLight);
+
     renderer.setAnimationLoop(animate);
-
-    renderer.getContext().canvas.addEventListener(
-      "webglcontextlost",
-      (e) => {
-        e.preventDefault();
-        console.log("WebGL context lost");
-      },
-      false,
-    );
-
-    renderer
-      .getContext()
-      .canvas.addEventListener("webglcontextrestored", () => {
-        console.log("WebGL context restored");
-      });
-
-    // On resize, update sizes and aspect ratios
-    const onWindowResizeHandler = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
 
     // On mouse move, skew view a little bit
     const onWindowMouseMoveHandler = (e) => {
@@ -147,7 +138,6 @@ function Graphic() {
       camera.lookAt(new THREE.Vector3(0, 0, 0));
     };
 
-    window.addEventListener("resize", onWindowResizeHandler);
     window.addEventListener("mousemove", onWindowMouseMoveHandler);
 
     // TEST PAUSE MECHANISM
@@ -161,7 +151,6 @@ function Graphic() {
     return () => {
       stopTransitions();
 
-      window.removeEventListener("resize", onWindowResizeHandler);
       window.removeEventListener("mousemove", onWindowMouseMoveHandler);
       window.removeEventListener("keyup", pauseOnSpace);
 
@@ -170,6 +159,27 @@ function Graphic() {
     };
   }, []);
 
+  // Handle dimensions & resizing
+  useEffect(() => {
+    const { camera, renderer } = graphicsRef.current;
+
+    // On resize, update sizes and aspect ratios
+    const onWindowResizeHandler = () => {
+      scaleObjectToDisplay();
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      console.log(paused);
+    };
+
+    window.addEventListener("resize", onWindowResizeHandler);
+
+    return () => {
+      window.removeEventListener("resize", onWindowResizeHandler);
+    };
+  }, [paused]);
+
+  // Handle pausing
   useEffect(() => {
     const { renderer } = graphicsRef.current;
 
