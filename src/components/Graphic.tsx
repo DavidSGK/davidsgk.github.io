@@ -4,7 +4,7 @@ import PixelObject from "../geometry/pixel";
 import { shuffle } from "../utils";
 
 const TRANSITION_INTERVAL = 8000;
-const CAMERA_DISTANCE = 25;
+const CAMERA_DISTANCE = 40;
 const CAMERA_MOVE_STRENGTH = 8;
 const BOB_DISTANCE = 0.075;
 const BOB_FREQUENCY = 2;

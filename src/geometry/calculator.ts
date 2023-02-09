@@ -320,7 +320,7 @@ export default class GeometryCalculator {
     const ringRadii = [...new Array(numRings).keys()].map(
       (i) => radius * (1.7 + i * 0.3),
     );
-    const maxTriangleRadius = 0.2;
+    const maxTriangleRadius = 0.15;
     const tilt = Math.PI / 6;
     const ringDensity = 1080;
 

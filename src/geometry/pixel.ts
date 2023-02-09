@@ -171,7 +171,7 @@ export default class PixelObject extends THREE.Object3D {
         shuffleUnits: true,
         planetShapeArgs: {
           radius: this.shapeSize * 3,
-          detail: 6,
+          detail: 16,
           numRings: 3,
         },
       });
